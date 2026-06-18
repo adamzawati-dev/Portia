@@ -10,3 +10,14 @@ import { isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-ef
 
 export const GLASS_SUPPORTED =
   Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
+
+if (__DEV__) {
+  // Phase-0 diagnostic: confirm real Apple Liquid Glass is active (not the fallback).
+  const ios = Platform.OS === 'ios';
+  console.log(
+    `[glass] GLASS_SUPPORTED=${GLASS_SUPPORTED} ` +
+      `isLiquidGlassAvailable=${ios ? isLiquidGlassAvailable() : 'n/a'} ` +
+      `isGlassEffectAPIAvailable=${ios ? isGlassEffectAPIAvailable() : 'n/a'} ` +
+      `platform=${Platform.OS} osVersion=${String(Platform.Version)}`,
+  );
+}

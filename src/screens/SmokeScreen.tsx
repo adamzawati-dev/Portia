@@ -38,7 +38,7 @@ export function SmokeScreen() {
     <Background>
       <View style={styles.screen}>
         <GlassContainer style={styles.container}>
-          <GlassSurface radius={radius.xl} interactive style={styles.card}>
+          <GlassSurface radius={radius.xl} interactive dichroic style={styles.card}>
             <View style={styles.cardInner}>
               <AppText variant="overline" color={palette.textSecondary}>
                 AVAILABLE BALANCE
@@ -51,7 +51,7 @@ export function SmokeScreen() {
               </AppText>
 
               <View style={styles.actions}>
-                <CtaButton label="Move money" />
+                <CtaButton label="Connect an account" />
               </View>
             </View>
           </GlassSurface>

@@ -1,7 +1,10 @@
 // src/components/Background.tsx
-// The Dusk environment: warm-ink base gradient (aubergine -> wine), two layered glow
-// blooms (radial, low alpha), and a subtle grain overlay. Never a cold black. All
-// colors come from theme/dusk.ts. Children render above every environment layer.
+// The Dusk environment: warm-ink base gradient (aubergine -> wine) + two soft radial
+// glow blooms (magenta upper, warm lower) + a subtle grain overlay. Never a cold
+// black, never one flat gradient — the blooms give it depth. The bloom sprite is a
+// white radial-falloff PNG recoloured per-bloom via `tintColor`, so each bloom's
+// strength is exactly its token alpha (gradients.glowMagenta / glowWarm). Children
+// render above every environment layer.
 import React from 'react';
 import { Image, StyleSheet, useWindowDimensions, View, ViewProps } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,9 +13,15 @@ import { gradients, palette } from '../../theme/dusk';
 // Grain is a presentation-only tuning value (no design token exists for it).
 const GRAIN_OPACITY = 0.06;
 
+const bloomSprite = require('../../assets/bloom.png');
+
 export function Background({ style, children, ...rest }: ViewProps) {
   const { width, height } = useWindowDimensions();
-  const bloom = Math.max(width, height) * 1.1;
+  const size = Math.max(width, height) * 1.6;
+
+  // Bloom centres as fractions of the screen, converted to top-left offsets.
+  const magenta = { left: width * 0.28 - size / 2, top: height * 0.14 - size / 2 };
+  const warm = { left: width * 0.82 - size / 2, top: height * 0.8 - size / 2 };
 
   return (
     <View style={[styles.root, style]} {...rest}>
@@ -23,40 +32,19 @@ export function Background({ style, children, ...rest }: ViewProps) {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Glow bloom 1 — magenta, upper field */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bloom,
-          { width: bloom, height: bloom, borderRadius: bloom / 2, top: -bloom * 0.32, left: -bloom * 0.22 },
-        ]}
-      >
-        <LinearGradient
-          colors={[gradients.glowMagenta, 'transparent']}
-          start={{ x: 0.4, y: 0.25 }}
-          end={{ x: 0.6, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
-
-      {/* Glow bloom 2 — warm, lower field */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bloom,
-          { width: bloom, height: bloom, borderRadius: bloom / 2, bottom: -bloom * 0.36, right: -bloom * 0.26 },
-        ]}
-      >
-        <LinearGradient
-          colors={[gradients.glowWarm, 'transparent']}
-          start={{ x: 0.6, y: 0.8 }}
-          end={{ x: 0.4, y: 0 }}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
-
-      {/* Subtle grain overlay */}
+      {/* Decorative, non-interactive environment layers */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        {/* Magenta bloom — upper field */}
+        <Image
+          source={bloomSprite}
+          style={[styles.bloom, { width: size, height: size, left: magenta.left, top: magenta.top, tintColor: gradients.glowMagenta }]}
+        />
+        {/* Warm bloom — lower field */}
+        <Image
+          source={bloomSprite}
+          style={[styles.bloom, { width: size, height: size, left: warm.left, top: warm.top, tintColor: gradients.glowWarm }]}
+        />
+        {/* Subtle grain overlay */}
         <Image
           source={require('../../assets/grain.png')}
           resizeMode="repeat"
@@ -76,6 +64,5 @@ const styles = StyleSheet.create({
   },
   bloom: {
     position: 'absolute',
-    overflow: 'hidden',
   },
 });

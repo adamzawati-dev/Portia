@@ -1,7 +1,11 @@
 // src/components/GlassContainer.tsx
-// Groups <GlassSurface> children so their glass effects merge when close together
-// (Apple's container-merging behaviour). On unsupported platforms it degrades to a
-// plain layout View — the surfaces still render their own fallbacks.
+// Groups MULTIPLE <GlassSurface> children so their glass effects merge when close
+// together (Apple's container-merging behaviour). On unsupported platforms it
+// degrades to a plain layout View — the surfaces still render their own fallbacks.
+//
+// Do NOT wrap a single surface in this: the native container traces a hard merged-
+// glass rectangle around its contents, which reads as a selection box. A lone card
+// should use <GlassSurface> directly.
 import React from 'react';
 import { View, ViewProps } from 'react-native';
 import { GlassContainer as NativeGlassContainer } from 'expo-glass-effect';

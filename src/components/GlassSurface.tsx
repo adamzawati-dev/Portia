@@ -21,12 +21,8 @@ export type GlassSurfaceProps = ViewProps & {
   tintColor?: string;
   /** Hero surfaces only: touch-reactive specular. Auto-disabled under Reduce Motion. */
   interactive?: boolean;
-  /** Inset top highlight + top specular rim. On by default. */
+  /** Soft specular sheen along the top edge. On by default. */
   specular?: boolean;
-  /** Faint spectral refractive hint along the top edge (hero surfaces). */
-  dichroic?: boolean;
-  /** Opacity of the dichroic hint. Defaults to a fraction of the token — a hint, not an outline. */
-  dichroicOpacity?: number;
   /** Soft lift shadow. On by default. */
   lift?: boolean;
   children?: React.ReactNode;
@@ -38,8 +34,6 @@ export function GlassSurface({
   tintColor,
   interactive = false,
   specular = true,
-  dichroic = false,
-  dichroicOpacity = glass.dichroicOpacity * 0.35,
   lift = true,
   style,
   children,
@@ -101,45 +95,12 @@ export function GlassSurface({
         ) : null}
       </View>
 
-      {/* Top specular rim — a sheen concentrated along the top edge that fades
-          toward the sides. Deliberately NOT a full-perimeter outline. */}
-      {specular ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={['transparent', glass.specular, 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.rim, { left: radius * 0.6, right: radius * 0.6 }]}
-        />
-      ) : null}
-
-      {/* Dichroic refractive hint — a faint spectral edge at the top only, fading at
-          the ends. A hint of refraction, never an outline. */}
-      {dichroic ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={['transparent', ...glass.dichroic, 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.dichroic, { left: radius * 0.6, right: radius * 0.6, opacity: dichroicOpacity }]}
-        />
-      ) : null}
+      {/* No drawn perimeter edge: real glass has no uniform lit border. The card's
+          definition comes from the native GlassView's own rim + the lift shadow.
+          The only highlight is the soft specular sheen above (top-only fill). */}
 
       {/* Content lives in normal flow so it defines the surface size. */}
       {children}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  rim: {
-    position: 'absolute',
-    top: 0,
-    height: StyleSheet.hairlineWidth * 3,
-  },
-  dichroic: {
-    position: 'absolute',
-    top: 0,
-    height: StyleSheet.hairlineWidth * 2,
-  },
-});

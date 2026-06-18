@@ -1,14 +1,17 @@
 // src/screens/SmokeScreen.tsx
 // Phase-0 smoke test ONLY. No navigation, no real data. It exists to prove the
-// system end to end: Background -> GlassContainer -> GlassSurface (real glass on
-// iOS 26, intentional fallback elsewhere) -> Money (tabular, de-emphasized $) ->
-// apricot CTA. Every value on screen is a placeholder, clearly labelled as such.
+// system end to end: Background -> GlassSurface (real glass on iOS 26, intentional
+// fallback elsewhere) -> Money (tabular, de-emphasized $) -> apricot CTA. Every
+// value on screen is a placeholder, clearly labelled as such.
+//
+// Note: a lone glass card is NOT wrapped in <GlassContainer> — the native container
+// traces a hard merged-glass rectangle around its contents. GlassContainer is for
+// grouping MULTIPLE surfaces so their effects merge.
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gradients, palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
-import { GlassContainer } from '../components/GlassContainer';
 import { GlassSurface } from '../components/GlassSurface';
 import { Money } from '../components/Money';
 import { AppText } from '../components/AppText';
@@ -37,25 +40,23 @@ export function SmokeScreen() {
   return (
     <Background>
       <View style={styles.screen}>
-        <GlassContainer style={styles.container}>
-          <GlassSurface radius={radius.xl} interactive dichroic style={styles.card}>
-            <View style={styles.cardInner}>
-              <AppText variant="overline" color={palette.textSecondary}>
-                AVAILABLE BALANCE
-              </AppText>
+        <GlassSurface radius={radius.xl} interactive style={styles.card}>
+          <View style={styles.cardInner}>
+            <AppText variant="overline" color={palette.textSecondary}>
+              AVAILABLE BALANCE
+            </AppText>
 
-              <Money value={4820.57} variant="numXL" color={palette.signature} style={styles.amount} />
+            <Money value={4820.57} variant="numXL" color={palette.signature} style={styles.amount} />
 
-              <AppText variant="caption" color={palette.textTertiary}>
-                Placeholder figure · as of today
-              </AppText>
+            <AppText variant="caption" color={palette.textTertiary}>
+              Placeholder figure · as of today
+            </AppText>
 
-              <View style={styles.actions}>
-                <CtaButton label="Connect an account" />
-              </View>
+            <View style={styles.actions}>
+              <CtaButton label="Connect an account" />
             </View>
-          </GlassSurface>
-        </GlassContainer>
+          </View>
+        </GlassSurface>
       </View>
     </Background>
   );
@@ -66,9 +67,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-  },
-  container: {
-    width: '100%',
   },
   card: {
     width: '100%',

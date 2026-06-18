@@ -1,9 +1,10 @@
 // src/screens/ChatScreen.tsx
-// The chat surface — UI only, no backend. Conversation of distinct glass bubbles
-// (each its own GlassSurface), a keyboard-respecting glass composer, and a MOCK
-// responder that appends canned, on-voice Portia replies (see chat/mockResponder —
-// swap it for the real API later). Seeded with example messages in Portia's voice.
-import React, { useCallback, useRef, useState } from 'react';
+// The chat surface. UI is unchanged — distinct glass bubbles, a keyboard-respecting
+// glass composer — but it now talks to the backend through `api` (src/api/client).
+// History loads on mount; sends await Portia's reply. Whether that's the live seam
+// or the in-process mock is decided by USE_MOCK in src/api/config; this screen
+// neither knows nor cares. It renders exactly what arrives and computes nothing.
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -19,31 +20,45 @@ import { AppText } from '../components/AppText';
 import { MessageBubble, TypingBubble } from '../components/MessageBubble';
 import { Composer } from '../components/Composer';
 import { Message } from '../chat/types';
-import { SEED_MESSAGES } from '../chat/seed';
-import { getMockReply } from '../chat/mockResponder';
+import { api, ApiError } from '../api/client';
 
 const TYPING_ITEM: Message = { id: '__typing__', sender: 'portia', text: '' };
-const MOCK_REPLY_DELAY = 700; // MOCK only — feels like a reply landing.
 
 let nextId = 0;
 const uid = () => `m${Date.now()}-${nextId++}`;
 
 export function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
-  const userTurns = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getChatHistory()
+      .then((h) => active && setMessages(h.messages))
+      .catch(() => active && setMessages([]));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSend = useCallback((text: string) => {
     setMessages((prev) => [...prev, { id: uid(), sender: 'user', text }]);
     setIsTyping(true);
-    const turn = userTurns.current++;
-    // MOCK: a real implementation awaits the Portia API here.
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages((prev) => [...prev, { id: uid(), sender: 'portia', text: getMockReply(turn) }]);
-    }, MOCK_REPLY_DELAY);
+    api
+      .sendChat(text)
+      .then((reply) => setMessages((prev) => [...prev, ...reply.messages]))
+      .catch((err) => {
+        // Errors don't apologize and aren't vague — say what to do next.
+        const line =
+          err instanceof ApiError
+            ? err.message
+            : "I couldn't reach your data just now. Check your connection and try again.";
+        setMessages((prev) => [...prev, { id: uid(), sender: 'portia', text: line }]);
+      })
+      .finally(() => setIsTyping(false));
   }, []);
 
   const renderItem: ListRenderItem<Message> = useCallback(
@@ -61,7 +76,7 @@ export function ChatScreen() {
             Portia
           </AppText>
           <AppText variant="caption" color={palette.textTertiary}>
-            Demo · canned replies
+            Mock backend
           </AppText>
         </View>
 

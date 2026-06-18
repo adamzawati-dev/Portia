@@ -1,22 +1,19 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fontAssets } from './theme/fonts';
 import { Background } from './src/components/Background';
-import { SmokeScreen } from './src/screens/SmokeScreen';
+import { ChatScreen } from './src/screens/ChatScreen';
 
 export default function App() {
   const [fontsLoaded] = useFonts(fontAssets);
 
-  // Show the bare environment while fonts load — avoids a flash of the wrong font.
-  if (!fontsLoaded) {
-    return <Background />;
-  }
-
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="light" />
-      <SmokeScreen />
-    </>
+      {/* Bare environment while fonts load — avoids a flash of the wrong font. */}
+      {fontsLoaded ? <ChatScreen /> : <Background />}
+    </SafeAreaProvider>
   );
 }

@@ -11,7 +11,7 @@ import { View, ViewProps } from 'react-native';
 import { palette, spacing } from '../../theme/dusk';
 import { AppText, TypeVariant } from './AppText';
 
-type NumericVariant = Extract<TypeVariant, 'numXL' | 'numLG' | 'numMD' | 'numSM'>;
+type NumericVariant = Extract<TypeVariant, 'numHero' | 'numXL' | 'numLG' | 'numMD' | 'numSM'>;
 
 export type MoneyProps = ViewProps & {
   /** The figure as returned by the API. */

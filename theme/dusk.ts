@@ -86,6 +86,7 @@ export const type = {
     caption:  { size: 12, weight: '500', letterSpacing: 0.4,  lineHeight: 16 },
     overline: { size: 11, weight: '600', letterSpacing: 1.3,  lineHeight: 14 }, // UPPERCASE labels
     // number treatments — always pair with numericVariant
+    numHero:  { size: 68, weight: '700', letterSpacing: -2.4, lineHeight: 70 }, // diagnostic full-screen figure
     numXL:    { size: 47, weight: '600', letterSpacing: -1.4, lineHeight: 47 }, // hero balance
     numLG:    { size: 45, weight: '700', letterSpacing: -1.3, lineHeight: 45 }, // leverage figure
     numMD:    { size: 30, weight: '600', letterSpacing: -0.6, lineHeight: 32 },

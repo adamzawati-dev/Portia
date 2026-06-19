@@ -114,9 +114,11 @@ export const mockApi: PortiaApi = {
     return delay({
       state: 'ready',
       segments: [
-        { id: 'd1', text: "Two years in, you've moved $148,200 through these accounts.", figure: 148200, window: 'last 24 months' },
-        { id: 'd2', text: 'Your top merchant is Uber Eats — $3,033 across 133 orders.', figure: 3033, window: 'last 24 months' },
-        { id: 'd3', text: 'You carry 6 real subscriptions totalling $214/mo. One has been dormant since March.', figure: 214, window: 'monthly' },
+        { id: 'd1', label: 'Last 24 months', figure: 148200, caption: 'moved through your accounts. Let me show you where it went.' },
+        { id: 'd2', label: 'Your #1 merchant', figure: 3033, caption: 'Uber Eats, across 133 orders. That is the big one.' },
+        { id: 'd3', label: 'Every month, on subscriptions', figure: 214, caption: 'across 6 of them. One has been dormant since March.' },
+        { id: 'd4', label: 'Your biggest single day', figure: 1290, caption: 'March 3rd — flights to Lisbon.' },
+        { id: 'd5', label: 'Money I could put back', figure: 2200, caption: 'a year, from just three changes. Want them?' },
       ],
     });
   },

@@ -13,7 +13,8 @@ export type SessionPhase =
   | 'loading' // hydrating the stored token / resolving where the user goes
   | 'signedOut' // no valid session -> SignInScreen
   | 'onboarding' // signed in, no bank linked yet -> BankConnectScreen
-  | 'ready'; // signed in + linked -> the app proper (ChatScreen)
+  | 'diagnostic' // linked, day-one Diagnostic not yet seen -> DiagnosticScreen
+  | 'ready'; // signed in + linked + past the Diagnostic -> the app (MainTabs)
 
 type SessionValue = {
   phase: SessionPhase;
@@ -21,6 +22,8 @@ type SessionValue = {
   signIn: () => Promise<void>;
   /** Re-fetch onboarding state (e.g. just after a bank links). */
   refresh: () => Promise<void>;
+  /** The Diagnostic has been seen — move into the app. */
+  completeDiagnostic: () => void;
   signOut: () => Promise<void>;
 };
 
@@ -38,7 +41,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // The one place that maps backend onboarding state -> a destination.
   const routeFromMe = useCallback(async () => {
     const me = await api.getMe();
-    setPhase(me.onboarding.hasLinkedBank ? 'ready' : 'onboarding');
+    const { hasLinkedBank, diagnosticState } = me.onboarding;
+    if (!hasLinkedBank) {
+      setPhase('onboarding');
+    } else if (diagnosticState === 'ready' || diagnosticState === 'pending') {
+      setPhase('diagnostic');
+    } else {
+      setPhase('ready');
+    }
   }, []);
 
   // Launch: hydrate a stored token, then resolve. A bad/expired token drops to
@@ -71,13 +81,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await routeFromMe();
   }, [routeFromMe]);
 
+  const completeDiagnostic = useCallback(() => setPhase('ready'), []);
+
   const signOut = useCallback(async () => {
     await clearToken();
     setPhase('signedOut');
   }, []);
 
   return (
-    <SessionContext.Provider value={{ phase, signIn, refresh: routeFromMe, signOut }}>
+    <SessionContext.Provider
+      value={{ phase, signIn, refresh: routeFromMe, completeDiagnostic, signOut }}
+    >
       {children}
     </SessionContext.Provider>
   );

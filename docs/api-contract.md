@@ -118,11 +118,14 @@ reveal; runs once ever, server-enforced.
     state: 'none' | 'pending' | 'ready' | 'done'
     segments: DiagnosticSegment[]   // empty unless state is 'ready' | 'done'
   }
+  // Shaped for the full-screen paced reveal: each segment is one card. `caption`
+  // is Portia's voice line and must NOT restate `figure` (the card shows the figure
+  // big on its own). Omit `figure` for a text-only card (e.g. the closing hook).
   DiagnosticSegment = {
     id: string
-    text: string
-    figure?: number     // optional hero number for this segment
-    window?: string     // the window that figure covers
+    label: string       // short overline, e.g. "Last 24 months"
+    figure?: number     // the dominant currency figure, shown big (counts up in-app)
+    caption: string     // one voice line; does not repeat the figure
   }
   ```
 

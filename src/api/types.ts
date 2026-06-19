@@ -68,12 +68,13 @@ export type ChatMessage = Message & { createdAt: string };
 export type ChatHistory = { messages: ChatMessage[]; nextCursor?: string };
 export type ChatReply = { messages: ChatMessage[] };
 
-// Diagnostic
+// Diagnostic — each segment is one full-screen card in the paced reveal. `caption`
+// is the voice line and must not restate `figure` (the card shows it big on its own).
 export type DiagnosticSegment = {
   id: string;
-  text: string;
-  figure?: number;
-  window?: string;
+  label: string; // short overline
+  figure?: number; // dominant currency figure (omit for a text-only card)
+  caption: string; // one voice line; does not repeat the figure
 };
 
 export type Diagnostic = {

@@ -2,13 +2,13 @@
 // The trust moment — the highest-stakes screen in the app. A normal person is about
 // to connect real bank data, so the design does LESS, not more: generous air, plain
 // (non-interactive) glass, signature spent only on the single CTA, no coral, no
-// pulse. The job is to make the privacy posture VISIBLE — credentials never reach
-// us, read-only, deletable — because a loud trust screen reads as a scam.
+// pulse. The headline and three short assurances carry the privacy posture —
+// credentials never reach us, read-only, deletable — because a loud trust screen
+// reads as a scam.
 //
-// Phase 3 design pass. The CTA is wired to an `onConnect` prop; the Plaid Link SDK
-// flow that fills it lands once this design is approved (see docs/api-contract.md
-// /plaid/link-token + /plaid/exchange).
-import React from 'react';
+// The CTA runs the native Plaid Link flow (src/plaid/link); on a successful link it
+// calls onConnected, which re-checks onboarding state and routes the user onward.
+import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -18,35 +18,34 @@ import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { GlassSurface } from '../components/GlassSurface';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { connectBank, PlaidCanceled } from '../plaid/link';
 
-type Assurance = { icon: SFSymbol; title: string; detail: string };
+type Assurance = { icon: SFSymbol; title: string };
 
 const ASSURANCES: Assurance[] = [
-  {
-    icon: 'lock.fill',
-    title: 'Your login never reaches me',
-    detail: 'It goes straight to Plaid. I only ever hold an encrypted token — never your password.',
-  },
-  {
-    icon: 'eye.fill',
-    title: 'Read-only, always',
-    detail: 'I can see your transactions. I can never move, send, or touch a cent.',
-  },
-  {
-    icon: 'trash.fill',
-    title: 'Gone when you say so',
-    detail: 'One tap wipes everything and disconnects your bank for good.',
-  },
+  { icon: 'lock.fill', title: 'Your login never reaches me' },
+  { icon: 'eye.fill', title: 'Read-only, always' },
+  { icon: 'trash.fill', title: 'Gone when you say so' },
 ];
 
-export function BankConnectScreen({
-  onConnect,
-  connecting,
-}: {
-  onConnect: () => void;
-  connecting?: boolean;
-}) {
+export function BankConnectScreen({ onConnected }: { onConnected: () => void }) {
   const insets = useSafeAreaInsets();
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConnect = async () => {
+    setError(null);
+    setConnecting(true);
+    try {
+      await connectBank();
+      onConnected(); // routes away; leave `connecting` true through the unmount
+    } catch (e) {
+      setConnecting(false);
+      if (e instanceof PlaidCanceled) return; // backed out — not an error
+      setError("Couldn't connect that bank. Try again.");
+    }
+  };
+
   return (
     <Background>
       <View
@@ -67,35 +66,27 @@ export function BankConnectScreen({
 
         <GlassSurface radius={radius.lg} style={styles.card}>
           {ASSURANCES.map((a, i) => (
-            <View
-              key={a.title}
-              style={[styles.row, i > 0 && { marginTop: spacing.xl }]}
-            >
+            <View key={a.title} style={[styles.row, i > 0 && { marginTop: spacing.lg }]}>
               <View style={styles.iconWell}>
-                <SymbolView
-                  name={a.icon}
-                  size={19}
-                  tintColor={palette.signature}
-                  weight="medium"
-                />
+                <SymbolView name={a.icon} size={19} tintColor={palette.signature} weight="medium" />
               </View>
-              <View style={styles.rowText}>
-                <AppText variant="title" color={palette.textPrimary}>
-                  {a.title}
-                </AppText>
-                <AppText variant="body" color={palette.textSecondary} style={styles.detail}>
-                  {a.detail}
-                </AppText>
-              </View>
+              <AppText variant="title" color={palette.textPrimary}>
+                {a.title}
+              </AppText>
             </View>
           ))}
         </GlassSurface>
 
         <View style={styles.footer}>
+          {error ? (
+            <AppText variant="caption" color={palette.attention} style={styles.error}>
+              {error}
+            </AppText>
+          ) : null}
           <PrimaryButton
             label="Connect with Plaid"
             icon="building.columns.fill"
-            onPress={onConnect}
+            onPress={handleConnect}
             loading={connecting}
           />
           <View style={styles.caption}>
@@ -128,21 +119,17 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   iconWell: {
     width: 30,
-    paddingTop: spacing.xs / 2,
-  },
-  rowText: {
-    flex: 1,
-  },
-  detail: {
-    marginTop: spacing.xs,
   },
   footer: {
     marginTop: 'auto',
     gap: spacing.md,
+  },
+  error: {
+    textAlign: 'center',
   },
   caption: {
     flexDirection: 'row',

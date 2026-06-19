@@ -19,8 +19,8 @@ function Root() {
     case 'signedOut':
       return <SignInScreen />;
     case 'onboarding':
-      // Plaid Link SDK wiring lands next; for now connecting just re-checks state.
-      return <BankConnectScreen onConnect={refresh} />;
+      // A successful Plaid link re-checks onboarding state and routes onward.
+      return <BankConnectScreen onConnected={refresh} />;
     case 'ready':
       return <ChatScreen />;
   }

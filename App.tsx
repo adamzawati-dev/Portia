@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fontAssets } from './theme/fonts';
 import { Background } from './src/components/Background';
-import { ChatScreen } from './src/screens/ChatScreen';
+import { MainTabs } from './src/screens/MainTabs';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { BankConnectScreen } from './src/screens/BankConnectScreen';
 import { SessionProvider, useSession } from './src/auth/session';
@@ -22,7 +22,7 @@ function Root() {
       // A successful Plaid link re-checks onboarding state and routes onward.
       return <BankConnectScreen onConnected={refresh} />;
     case 'ready':
-      return <ChatScreen />;
+      return <MainTabs />;
   }
 }
 

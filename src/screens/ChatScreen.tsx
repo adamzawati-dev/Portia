@@ -93,7 +93,8 @@ export function ChatScreen() {
             keyboardDismissMode="interactive"
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
-          <View style={{ paddingBottom: Math.max(insets.bottom, spacing.sm) }}>
+          {/* The tab bar (or, while typing, the keyboard) owns the bottom inset. */}
+          <View style={{ paddingBottom: spacing.sm }}>
             <Composer onSend={handleSend} />
           </View>
         </KeyboardAvoidingView>

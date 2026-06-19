@@ -5,6 +5,26 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fontAssets } from './theme/fonts';
 import { Background } from './src/components/Background';
 import { ChatScreen } from './src/screens/ChatScreen';
+import { SignInScreen } from './src/screens/SignInScreen';
+import { BankConnectScreen } from './src/screens/BankConnectScreen';
+import { SessionProvider, useSession } from './src/auth/session';
+
+// Routes the user by session phase. No nav library yet — three destinations, no
+// back-stack (see src/auth/session for the rationale).
+function Root() {
+  const { phase, refresh } = useSession();
+  switch (phase) {
+    case 'loading':
+      return <Background />;
+    case 'signedOut':
+      return <SignInScreen />;
+    case 'onboarding':
+      // Plaid Link SDK wiring lands next; for now connecting just re-checks state.
+      return <BankConnectScreen onConnect={refresh} />;
+    case 'ready':
+      return <ChatScreen />;
+  }
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts(fontAssets);
@@ -13,7 +33,13 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       {/* Bare environment while fonts load — avoids a flash of the wrong font. */}
-      {fontsLoaded ? <ChatScreen /> : <Background />}
+      {fontsLoaded ? (
+        <SessionProvider>
+          <Root />
+        </SessionProvider>
+      ) : (
+        <Background />
+      )}
     </SafeAreaProvider>
   );
 }

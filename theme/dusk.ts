@@ -89,7 +89,9 @@ export const type = {
     numXL:    { size: 47, weight: '600', letterSpacing: -1.4, lineHeight: 47 }, // hero balance
     numLG:    { size: 45, weight: '700', letterSpacing: -1.3, lineHeight: 45 }, // leverage figure
     numMD:    { size: 30, weight: '600', letterSpacing: -0.6, lineHeight: 32 },
-    currency: { size: 23, weight: '500', opacity: 0.7 }, // the de-emphasized $ glyph
+    numSM:    { size: 18, weight: '600', letterSpacing: -0.2, lineHeight: 22 }, // list-row figure
+    currency:   { size: 23, weight: '500', opacity: 0.7 }, // the de-emphasized $ glyph
+    currencySm: { size: 12, weight: '500', opacity: 0.7 }, // de-emphasized $ for numSM
   },
 } as const;
 

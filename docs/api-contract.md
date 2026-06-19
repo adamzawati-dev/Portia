@@ -66,9 +66,15 @@ authed user id. Duplicate institutions are detected and discarded, as today.
 
 ### `GET /accounts`
 Linked institutions and their accounts, available-led, with posted-vs-projected
-for cards — the shape the engine already computes.
-- **200** `Institution[]` where
+for cards — the shape the engine already computes. The `summary.cashAvailable`
+figure is computed by the backend (the app does no arithmetic, so the overview's
+hero number must arrive precomputed).
+- **200** `AccountsOverview` where
   ```
+  AccountsOverview = {
+    summary: { cashAvailable: number, window: string }
+    institutions: Institution[]
+  }
   Institution = { institutionName: string, accounts: Account[] }
   Account = {
     id: string

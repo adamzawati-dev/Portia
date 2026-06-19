@@ -5,6 +5,7 @@
 // whether the seam is live. The app does no arithmetic; it renders what arrives.
 import { BASE_URL, USE_MOCK } from './config';
 import type {
+  AccountsOverview,
   ApiErrorBody,
   AuthResult,
   ChatHistory,
@@ -12,7 +13,6 @@ import type {
   Diagnostic,
   ExchangeInput,
   ExchangeResult,
-  Institution,
   LinkToken,
   Me,
 } from './types';
@@ -26,7 +26,7 @@ export interface PortiaApi {
   getMe(): Promise<Me>;
   createLinkToken(): Promise<LinkToken>;
   exchangePublicToken(input: ExchangeInput): Promise<ExchangeResult>;
-  getAccounts(): Promise<Institution[]>;
+  getAccounts(): Promise<AccountsOverview>;
   getChatHistory(cursor?: string): Promise<ChatHistory>;
   sendChat(message: string): Promise<ChatReply>;
   getDiagnostic(): Promise<Diagnostic>;

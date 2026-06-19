@@ -11,7 +11,7 @@ import { View, ViewProps } from 'react-native';
 import { palette, spacing } from '../../theme/dusk';
 import { AppText, TypeVariant } from './AppText';
 
-type NumericVariant = Extract<TypeVariant, 'numXL' | 'numLG' | 'numMD'>;
+type NumericVariant = Extract<TypeVariant, 'numXL' | 'numLG' | 'numMD' | 'numSM'>;
 
 export type MoneyProps = ViewProps & {
   /** The figure as returned by the API. */
@@ -42,6 +42,9 @@ export function Money({
   const [intPart, centsPart] = fixed.split('.');
   const grouped = groupThousands(intPart);
 
+  // The de-emphasized glyph scales with the figure so it never out-sizes a small one.
+  const currencyVariant = variant === 'numSM' ? 'currencySm' : 'currency';
+
   const a11y = `${negative ? '-' : ''}${currencySymbol}${grouped}${centsPart ? '.' + centsPart : ''}`;
 
   return (
@@ -56,14 +59,14 @@ export function Money({
           −
         </AppText>
       ) : null}
-      <AppText variant="currency" color={color} tabular style={{ marginRight: spacing.xs / 2 }}>
+      <AppText variant={currencyVariant} color={color} tabular style={{ marginRight: spacing.xs / 2 }}>
         {currencySymbol}
       </AppText>
       <AppText variant={variant} color={color} tabular>
         {grouped}
       </AppText>
       {showCents ? (
-        <AppText variant="currency" color={color} tabular>
+        <AppText variant={currencyVariant} color={color} tabular>
           .{centsPart}
         </AppText>
       ) : null}

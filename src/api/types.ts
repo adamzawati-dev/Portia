@@ -49,6 +49,18 @@ export type Institution = {
   accounts: Account[];
 };
 
+// The overview payload. `summary.cashAvailable` is computed by the backend — the
+// app never sums accounts itself.
+export type AccountsSummary = {
+  cashAvailable: number;
+  window: string;
+};
+
+export type AccountsOverview = {
+  summary: AccountsSummary;
+  institutions: Institution[];
+};
+
 // Chat — a ChatMessage is a UI Message plus a server timestamp, so it renders
 // through the existing MessageBubble without mapping.
 export type ChatMessage = Message & { createdAt: string };

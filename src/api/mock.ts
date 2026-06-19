@@ -11,6 +11,7 @@
 import { SEED_MESSAGES } from '../chat/seed';
 import { MOCK_LATENCY_MS } from './config';
 import type {
+  AccountsOverview,
   AuthResult,
   ChatHistory,
   ChatMessage,
@@ -18,7 +19,6 @@ import type {
   Diagnostic,
   ExchangeInput,
   ExchangeResult,
-  Institution,
   LinkToken,
   Me,
   PortiaApi,
@@ -72,22 +72,26 @@ export const mockApi: PortiaApi = {
     });
   },
 
-  async getAccounts(): Promise<Institution[]> {
-    return delay([
-      {
-        institutionName: 'Wells Fargo',
-        accounts: [
-          { id: 'acc-1', name: 'Everyday Checking', mask: '4021', type: 'depository', available: 3284.12, current: 3284.12, window: 'as of just now' },
-          { id: 'acc-2', name: 'Way2Save', mask: '8870', type: 'depository', available: 9120.0, current: 9120.0, window: 'as of just now' },
-        ],
-      },
-      {
-        institutionName: 'Amex',
-        accounts: [
-          { id: 'acc-3', name: 'Platinum', mask: '1009', type: 'credit', available: 0, current: 842.55, projected: 918.3, window: 'posted now · projected once pending clears' },
-        ],
-      },
-    ]);
+  async getAccounts(): Promise<AccountsOverview> {
+    return delay({
+      // Backend-computed: total available across depository accounts.
+      summary: { cashAvailable: 12404.12, window: 'as of just now' },
+      institutions: [
+        {
+          institutionName: 'Wells Fargo',
+          accounts: [
+            { id: 'acc-1', name: 'Everyday Checking', mask: '4021', type: 'depository', available: 3284.12, current: 3284.12, window: 'as of just now' },
+            { id: 'acc-2', name: 'Way2Save', mask: '8870', type: 'depository', available: 9120.0, current: 9120.0, window: 'as of just now' },
+          ],
+        },
+        {
+          institutionName: 'Amex',
+          accounts: [
+            { id: 'acc-3', name: 'Platinum', mask: '1009', type: 'credit', available: 0, current: 842.55, projected: 918.3, window: 'posted now · projected once pending clears' },
+          ],
+        },
+      ],
+    });
   },
 
   async getChatHistory(): Promise<ChatHistory> {

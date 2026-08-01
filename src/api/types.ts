@@ -5,12 +5,8 @@
 // load-bearing rules in the contract). Never compute or invent these in the app.
 import { Message } from '../chat/types';
 
-// Auth
-export type AuthResult = {
-  sessionToken: string;
-  user: { id: string; isNewUser: boolean };
-};
-
+// Auth is Supabase-native (signInWithIdToken in src/auth) — the bearer sent to the
+// backend is the Supabase access token; there is no auth endpoint in the contract.
 export type Me = {
   user: { id: string };
   onboarding: {

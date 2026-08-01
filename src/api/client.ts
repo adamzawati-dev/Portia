@@ -7,7 +7,6 @@ import { BASE_URL, USE_MOCK } from './config';
 import type {
   AccountsOverview,
   ApiErrorBody,
-  AuthResult,
   ChatHistory,
   ChatReply,
   Diagnostic,
@@ -22,7 +21,6 @@ import type {
 export * from './types';
 
 export interface PortiaApi {
-  authApple(input: { identityToken: string; nonce: string }): Promise<AuthResult>;
   getMe(): Promise<Me>;
   createLinkToken(): Promise<LinkToken>;
   exchangePublicToken(input: ExchangeInput): Promise<ExchangeResult>;
@@ -77,7 +75,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 const httpApi: PortiaApi = {
-  authApple: (input) => request('POST', '/auth/apple', input),
   getMe: () => request('GET', '/me'),
   createLinkToken: () => request('POST', '/plaid/link-token'),
   exchangePublicToken: (input) => request('POST', '/plaid/exchange', input),

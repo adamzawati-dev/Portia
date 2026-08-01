@@ -12,7 +12,6 @@ import { SEED_MESSAGES } from '../chat/seed';
 import { MOCK_LATENCY_MS } from './config';
 import type {
   AccountsOverview,
-  AuthResult,
   ChatHistory,
   ChatMessage,
   ChatReply,
@@ -47,10 +46,6 @@ const history: ChatMessage[] = SEED_MESSAGES.map((m, i) => ({
 let turn = 0;
 
 export const mockApi: PortiaApi = {
-  async authApple(): Promise<AuthResult> {
-    return delay({ sessionToken: uid('mock-session'), user: { id: 'mock-user', isNewUser: false } });
-  },
-
   async getMe(): Promise<Me> {
     return delay({
       user: { id: 'mock-user' },

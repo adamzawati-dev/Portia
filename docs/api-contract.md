@@ -11,9 +11,9 @@ implements it (`src/api/mock.ts`), so both sides move in parallel.
   merchant/category name, and the time window each figure covers come from the
   backend. The app renders exactly what it receives. This mirrors the engine's
   own rule: the math is never the model's job; the voice is never the code's job.
-- **Auth.** `Authorization: Bearer <sessionToken>` on every endpoint except
-  `POST /auth/apple`. The session token replaces the Telegram secret and the
-  Plaid hosted-page cookie as the thing that binds a request to a user.
+- **Auth.** `Authorization: Bearer <sessionToken>` on every endpoint. The session
+  token is the Supabase access token (see Auth below); it replaces the Telegram
+  secret and the Plaid hosted-page cookie as the thing that binds a request to a user.
 - **Money is transport-neutral.** Amounts are sent as numbers (major units, e.g.
   `1240.50`) plus a `window` label string the backend authored (e.g.
   `"last 30 days"`, `"June so far"`). The app never formats a window itself and
@@ -32,10 +32,19 @@ in-process mock; flip `USE_MOCK = false` + set `BASE_URL` to hit a real backend.
 
 ## Auth
 
-### `POST /auth/apple`
-Exchange a Sign in with Apple credential for a Portia session.
-- **Body** `{ identityToken: string, nonce: string }`
-- **200** `{ sessionToken: string, user: { id: string, isNewUser: boolean } }`
+There are no auth endpoints. Identity is Supabase-native:
+
+- The app signs in with Apple via Supabase Auth's ID-token flow
+  (`supabase.auth.signInWithIdToken` with the Apple identity token + nonce).
+  Supabase verifies the Apple credential; supabase-js owns session persistence
+  (Keychain) and silent refresh. The backend never sees the Apple credential.
+- `sessionToken` = the Supabase **access token**. The app sends it as the bearer
+  on every request; the backend verifies it against the Supabase project's JWKS.
+- **Auto-registration.** The backend creates the user record on the first verified
+  request — there is no separate registration call. A brand-new sign-in can go
+  straight to `GET /me`.
+- `401` still means the token is missing/expired server-side — the app routes to
+  sign-in. With supabase-js auto-refresh this is the backstop, not the normal path.
 
 > Note for the backend seam: Apple yields an Apple user id, not a Telegram id.
 > The app replaces Telegram — existing Telegram-linked accounts are **not**
@@ -135,7 +144,6 @@ reveal; runs once ever, server-enforced.
 
 | Method | Path                  | Purpose                          |
 |--------|-----------------------|----------------------------------|
-| POST   | `/auth/apple`         | Sign in with Apple → session     |
 | GET    | `/me`                 | Identity + onboarding state      |
 | POST   | `/plaid/link-token`   | Mint Plaid Link token            |
 | POST   | `/plaid/exchange`     | Exchange public token, link bank |

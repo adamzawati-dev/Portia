@@ -10,7 +10,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.adamzawati.portia",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "appleTeamId": "67GRH9YA38"
     },
     "android": {
       "adaptiveIcon": {

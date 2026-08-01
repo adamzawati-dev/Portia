@@ -32,6 +32,9 @@ export type ExchangeResult = {
 // adding banks; returns the fresh onboarding block so routing needs no second /me.
 export type LinkingDone = { onboarding: Me['onboarding'] };
 
+// POST /diagnostic/continue — seeds Portia's opening chat line after the reveal.
+export type ContinueDiagnostic = { seeding: boolean };
+
 // Accounts / balances — strings and numbers exactly as the bank/engine report.
 export type Account = {
   id: string;

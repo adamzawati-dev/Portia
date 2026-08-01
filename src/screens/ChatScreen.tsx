@@ -35,10 +35,25 @@ export function ChatScreen() {
 
   useEffect(() => {
     let active = true;
-    api
-      .getChatHistory()
-      .then((h) => active && setMessages(h.messages))
-      .catch(() => active && setMessages([]));
+    let tries = 0;
+    const load = () => {
+      api
+        .getChatHistory()
+        .then((h) => {
+          if (!active) return;
+          // The contract's page is newest-first; the thread renders oldest-first.
+          const ordered = [...h.messages].sort(
+            (a, b) => Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? ''),
+          );
+          setMessages(ordered);
+          // Just after the reveal, Portia's opening line may still be writing
+          // (POST /diagnostic/continue is fire-and-forget) -- an empty thread
+          // re-checks briefly so the seed is collected, not missed.
+          if (ordered.length === 0 && tries++ < 3) setTimeout(() => active && load(), 1500);
+        })
+        .catch(() => active && setMessages([]));
+    };
+    load();
     return () => {
       active = false;
     };

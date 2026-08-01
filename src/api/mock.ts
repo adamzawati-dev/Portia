@@ -13,6 +13,7 @@ import { MOCK_LATENCY_MS } from './config';
 import type {
   AccountsOverview,
   ChatHistory,
+  ContinueDiagnostic,
   ChatMessage,
   ChatReply,
   Diagnostic,
@@ -70,6 +71,10 @@ export const mockApi: PortiaApi = {
 
   async finishLinking(): Promise<LinkingDone> {
     return delay({ onboarding: { hasLinkedBank: true, diagnosticState: 'ready' as const } });
+  },
+
+  async continueDiagnostic(): Promise<ContinueDiagnostic> {
+    return delay({ seeding: false }); // mock's seed conversation already exists
   },
 
   async getAccounts(): Promise<AccountsOverview> {

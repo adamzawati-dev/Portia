@@ -138,6 +138,15 @@ reveal; runs once ever, server-enforced.
   }
   ```
 
+### `POST /diagnostic/continue`
+Fired (and forgotten) when the user taps through the reveal's closing hook. Seeds
+Portia's opening line into the chat thread — the conversation continues what the
+cards started instead of opening on an empty room; the chat screen collects it on
+its first history fetch. Idempotent: seeds only when the diagnostic is complete and
+the thread is still empty. The line is validated to contain **no figures** (any
+digit rejects the generation and a deterministic fallback ships instead).
+- **200** `{ seeding: boolean }`
+
 ---
 
 ## Endpoint summary
@@ -151,3 +160,4 @@ reveal; runs once ever, server-enforced.
 | POST   | `/chat`               | Send message → Portia reply      |
 | GET    | `/chat/history`       | Prior conversation               |
 | GET    | `/diagnostic`         | Day-one paced reveal             |
+| POST   | `/diagnostic/continue`| Seed chat opening after reveal   |

@@ -117,6 +117,10 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
 
   const finish = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // Fire-and-forget: seeds Portia's opening line server-side so the chat continues
+    // what the reveal started. Never blocks this transition -- the chat screen's
+    // first history fetch collects it (with a brief empty-thread re-check).
+    api.continueDiagnostic().catch(() => {});
     onDone();
   };
 

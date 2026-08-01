@@ -8,6 +8,7 @@ import type {
   AccountsOverview,
   ApiErrorBody,
   ChatHistory,
+  ContinueDiagnostic,
   ChatReply,
   Diagnostic,
   ExchangeInput,
@@ -30,6 +31,7 @@ export interface PortiaApi {
   getChatHistory(cursor?: string): Promise<ChatHistory>;
   sendChat(message: string): Promise<ChatReply>;
   getDiagnostic(): Promise<Diagnostic>;
+  continueDiagnostic(): Promise<ContinueDiagnostic>;
 }
 
 // The bearer token attached to backend requests. The Supabase session is the
@@ -86,6 +88,7 @@ const httpApi: PortiaApi = {
     request('GET', `/chat/history${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   sendChat: (message) => request('POST', '/chat', { message }),
   getDiagnostic: () => request('GET', '/diagnostic'),
+  continueDiagnostic: () => request('POST', '/diagnostic/continue'),
 };
 
 // `require` (not a static import) so the mock module is only pulled in when used.

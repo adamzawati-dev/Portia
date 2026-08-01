@@ -28,6 +28,10 @@ export type ExchangeResult = {
   duplicate: boolean;
 };
 
+// POST /plaid/linking-done — releases the diagnostic hold once the user is done
+// adding banks; returns the fresh onboarding block so routing needs no second /me.
+export type LinkingDone = { onboarding: Me['onboarding'] };
+
 // Accounts / balances — strings and numbers exactly as the bank/engine report.
 export type Account = {
   id: string;

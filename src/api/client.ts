@@ -12,6 +12,7 @@ import type {
   Diagnostic,
   ExchangeInput,
   ExchangeResult,
+  LinkingDone,
   LinkToken,
   Me,
 } from './types';
@@ -24,6 +25,7 @@ export interface PortiaApi {
   getMe(): Promise<Me>;
   createLinkToken(): Promise<LinkToken>;
   exchangePublicToken(input: ExchangeInput): Promise<ExchangeResult>;
+  finishLinking(): Promise<LinkingDone>;
   getAccounts(): Promise<AccountsOverview>;
   getChatHistory(cursor?: string): Promise<ChatHistory>;
   sendChat(message: string): Promise<ChatReply>;
@@ -78,6 +80,7 @@ const httpApi: PortiaApi = {
   getMe: () => request('GET', '/me'),
   createLinkToken: () => request('POST', '/plaid/link-token'),
   exchangePublicToken: (input) => request('POST', '/plaid/exchange', input),
+  finishLinking: () => request('POST', '/plaid/linking-done'),
   getAccounts: () => request('GET', '/accounts'),
   getChatHistory: (cursor) =>
     request('GET', `/chat/history${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),

@@ -18,6 +18,7 @@ import type {
   Diagnostic,
   ExchangeInput,
   ExchangeResult,
+  LinkingDone,
   LinkToken,
   Me,
   PortiaApi,
@@ -65,6 +66,10 @@ export const mockApi: PortiaApi = {
       linked: [{ institutionName: input.institution.name, accountCount: 2 }],
       duplicate: false,
     });
+  },
+
+  async finishLinking(): Promise<LinkingDone> {
+    return delay({ onboarding: { hasLinkedBank: true, diagnosticState: 'ready' as const } });
   },
 
   async getAccounts(): Promise<AccountsOverview> {

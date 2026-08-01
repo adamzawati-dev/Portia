@@ -11,7 +11,7 @@
 // for now — this phase is auth-only and additive.
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { api, setSessionToken } from '../api/client';
+import { api, setOnUnauthorized, setSessionToken } from '../api/client';
 import { supabase } from './supabase';
 import { signInWithApple } from './apple';
 
@@ -77,6 +77,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     },
     [routeFromMe],
   );
+
+  // A 401 from any endpoint means the session is dead server-side (contract rule):
+  // sign out, which routes to sign-in via the auth listener. Supabase auto-refresh
+  // makes this rare; it's the backstop, not the normal expiry path.
+  useEffect(() => {
+    setOnUnauthorized(() => void supabase.auth.signOut());
+    return () => setOnUnauthorized(null);
+  }, []);
 
   // Launch + every auth change flow through one listener. onAuthStateChange emits
   // INITIAL_SESSION on subscribe, so this also hydrates the persisted session on

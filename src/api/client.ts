@@ -40,6 +40,14 @@ export const setSessionToken = (token: string | null) => {
   sessionToken = token;
 };
 
+// Contract rule: 401 means the session token is missing/expired — the app routes
+// to sign-in. src/auth/session registers the handler (a callback avoids an
+// api → auth → api import cycle); the ApiError still propagates to the caller.
+let onUnauthorized: (() => void) | null = null;
+export const setOnUnauthorized = (handler: (() => void) | null) => {
+  onUnauthorized = handler;
+};
+
 /** Thrown on any non-2xx response; carries the backend's voiced message + code. */
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number) {
@@ -59,6 +67,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (!res.ok) {
+    if (res.status === 401) onUnauthorized?.();
     // Prefer the backend's voiced error; fall back to a plain one.
     const fallback = `Request to ${path} failed (${res.status}).`;
     const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;

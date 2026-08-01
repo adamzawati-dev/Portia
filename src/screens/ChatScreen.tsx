@@ -75,9 +75,7 @@ export function ChatScreen() {
           <AppText variant="title" color={palette.textPrimary}>
             Portia
           </AppText>
-          <AppText variant="caption" color={palette.textTertiary}>
-            Mock backend
-          </AppText>
+          {/* Right corner is owned by the account gear (see MainTabs). */}
         </View>
 
         <KeyboardAvoidingView

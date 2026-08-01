@@ -32,8 +32,9 @@ export interface PortiaApi {
   getDiagnostic(): Promise<Diagnostic>;
 }
 
-// Session token lives in memory for now. Phase 2 (auth) persists it in the
-// Keychain via expo-secure-store and hydrates this on launch.
+// The bearer token attached to backend requests. The Supabase session is the
+// source of truth (persisted in the Keychain by supabase-js); src/auth/session
+// primes this with the access token on every auth change and clears it on sign-out.
 let sessionToken: string | null = null;
 export const setSessionToken = (token: string | null) => {
   sessionToken = token;

@@ -1,24 +1,30 @@
 // src/auth/session.tsx
 // App-level auth + onboarding state — the single source of "what screen does this
 // user belong on." A lightweight state machine instead of a navigation library:
-// the app currently has three top-level destinations and no back-stack, so a nav
-// lib would be premature weight. Revisit when stacked/tabbed surfaces arrive
-// (balances, diagnostic) in a later phase.
+// the app's top-level destinations have no back-stack, so a nav lib would be
+// premature weight. Revisit when stacked surfaces arrive.
+//
+// Auth is now real: the phase is driven by the Supabase session (Sign in with Apple
+// via supabase.auth — see ./apple). Supabase persists the session in the Keychain
+// and restores it on launch, so a returning user lands signed in. Everything
+// downstream of auth (bank link, diagnostic) still resolves off the mock `GET /me`
+// for now — this phase is auth-only and additive.
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api } from '../api/client';
+import type { Session } from '@supabase/supabase-js';
+import { api, setSessionToken } from '../api/client';
+import { supabase } from './supabase';
 import { signInWithApple } from './apple';
-import { clearToken, loadToken, saveToken } from './storage';
 
 export type SessionPhase =
-  | 'loading' // hydrating the stored token / resolving where the user goes
-  | 'signedOut' // no valid session -> SignInScreen
+  | 'loading' // hydrating the session / resolving where the user goes
+  | 'signedOut' // no session -> pre-auth onboarding + SignInScreen
   | 'onboarding' // signed in, no bank linked yet -> BankConnectScreen
   | 'diagnostic' // linked, day-one Diagnostic not yet seen -> DiagnosticScreen
   | 'ready'; // signed in + linked + past the Diagnostic -> the app (MainTabs)
 
 type SessionValue = {
   phase: SessionPhase;
-  /** Run the Apple flow, persist the session, and route by onboarding state. */
+  /** Run the Apple flow; the resulting Supabase session drives routing. */
   signIn: () => Promise<void>;
   /** Re-fetch onboarding state (e.g. just after a bank links). */
   refresh: () => Promise<void>;
@@ -51,41 +57,54 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Launch: hydrate a stored token, then resolve. A bad/expired token drops to
-  // signed-out rather than trapping the user on a spinner.
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const token = await loadToken();
-      if (!active) return;
-      if (!token) {
+  // Map a Supabase session -> a phase. No session drops to the pre-auth flow; a
+  // session primes the API client's bearer token, then onboarding state decides
+  // the destination. A failed /me drops to signed-out rather than trapping a spinner.
+  const routeFromSession = useCallback(
+    async (session: Session | null) => {
+      if (!session) {
+        setSessionToken(null);
         setPhase('signedOut');
         return;
       }
+      setSessionToken(session.access_token);
+      setPhase('loading');
       try {
         await routeFromMe();
       } catch {
-        await clearToken();
-        if (active) setPhase('signedOut');
+        await supabase.auth.signOut(); // emits SIGNED_OUT -> routeFromSession(null)
       }
-    })();
+    },
+    [routeFromMe],
+  );
+
+  // Launch + every auth change flow through one listener. onAuthStateChange emits
+  // INITIAL_SESSION on subscribe, so this also hydrates the persisted session on
+  // launch — no separate getSession() call (which would double-route).
+  useEffect(() => {
+    let active = true;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) void routeFromSession(session);
+    });
     return () => {
       active = false;
+      subscription.unsubscribe();
     };
-  }, [routeFromMe]);
+  }, [routeFromSession]);
 
+  // Sign-in success establishes the Supabase session, which the listener above turns
+  // into a phase. We rethrow so SignInScreen can surface a cancel/error; on success
+  // the screen stays put for the blink until the listener routes onward.
   const signIn = useCallback(async () => {
-    const { sessionToken } = await signInWithApple();
-    await saveToken(sessionToken);
-    setPhase('loading');
-    await routeFromMe();
-  }, [routeFromMe]);
+    await signInWithApple();
+  }, []);
 
   const completeDiagnostic = useCallback(() => setPhase('ready'), []);
 
   const signOut = useCallback(async () => {
-    await clearToken();
-    setPhase('signedOut');
+    await supabase.auth.signOut(); // listener routes to 'signedOut'
   }, []);
 
   return (

@@ -10,6 +10,7 @@ import { palette } from '../../theme/dusk';
 import { ChatScreen } from './ChatScreen';
 import { BalancesScreen } from './BalancesScreen';
 import { TabBar, TabKey } from '../components/TabBar';
+import { SettingsButton } from '../components/SettingsButton';
 import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 
 export function MainTabs() {
@@ -19,6 +20,9 @@ export function MainTabs() {
   return (
     <View style={styles.root}>
       <View style={styles.screen}>{tab === 'chat' ? <ChatScreen /> : <BalancesScreen />}</View>
+      {/* The account gear floats over both surfaces, top-right. Hidden while the
+          keyboard is up so it never sits over the composer. */}
+      {keyboardVisible ? null : <SettingsButton />}
       {keyboardVisible ? null : <TabBar active={tab} onChange={setTab} />}
     </View>
   );

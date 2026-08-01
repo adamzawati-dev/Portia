@@ -61,7 +61,7 @@ export function SignInScreen() {
             style={styles.appleButton}
           />
           <AppText variant="caption" color={palette.textTertiary} style={styles.fineprint}>
-            Private by design. Your data is yours, and only yours.
+            No password. Two seconds.
           </AppText>
         </View>
       </View>

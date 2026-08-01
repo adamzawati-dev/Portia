@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fontAssets } from './theme/fonts';
 import { Background } from './src/components/Background';
 import { MainTabs } from './src/screens/MainTabs';
-import { SignInScreen } from './src/screens/SignInScreen';
+import { PreAuth } from './src/screens/PreAuth';
 import { BankConnectScreen } from './src/screens/BankConnectScreen';
 import { DiagnosticScreen } from './src/screens/DiagnosticScreen';
 import { SessionProvider, useSession } from './src/auth/session';
@@ -18,7 +18,8 @@ function Root() {
     case 'loading':
       return <Background />;
     case 'signedOut':
-      return <SignInScreen />;
+      // The pre-auth value sequence, then Sign in with Apple.
+      return <PreAuth />;
     case 'onboarding':
       // A successful Plaid link re-checks onboarding state and routes onward.
       return <BankConnectScreen onConnected={refresh} />;

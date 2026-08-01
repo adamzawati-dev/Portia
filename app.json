@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.portia",
+      "bundleIdentifier": "com.adamzawati.portia",
       "usesAppleSignIn": true
     },
     "android": {

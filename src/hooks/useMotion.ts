@@ -17,6 +17,7 @@ export type Motion = {
   durations: Durations;
   springs: Springs;
   revealStagger: number;
+  cardStagger: number;
 };
 
 // Settles within ~1 frame: springs become a snap, not a glide.
@@ -30,8 +31,14 @@ export function useMotion(): Motion {
   return useMemo(
     () =>
       reduced
-        ? { reduced, durations: ZERO_DURATIONS, springs: IMMEDIATE_SPRINGS, revealStagger: 0 }
-        : { reduced, durations: motion.durations, springs: motion.springs, revealStagger: motion.revealStagger },
+        ? { reduced, durations: ZERO_DURATIONS, springs: IMMEDIATE_SPRINGS, revealStagger: 0, cardStagger: 0 }
+        : {
+            reduced,
+            durations: motion.durations,
+            springs: motion.springs,
+            revealStagger: motion.revealStagger,
+            cardStagger: motion.cardStagger,
+          },
     [reduced],
   );
 }

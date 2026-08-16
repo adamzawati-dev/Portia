@@ -117,6 +117,7 @@ export const motion = {
     layout: { damping: 22, stiffness: 200, mass: 1 }, // entrances / layout shifts
   },
   revealStagger: 90, // Diagnostic reveal staggers children by this (ms)
+  cardStagger: 60, // card lists fade up staggered by this on first mount (ms)
 } as const;
 
 export const dusk = { palette, gradients, glass, radius, spacing, type, motion } as const;

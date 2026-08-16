@@ -1,29 +1,39 @@
 // src/components/Composer.tsx
 // Bottom composer: a glass text field (chrome — it floats over the thread) + an
-// apricot send button. Send is a commit action: it goes through <Press commit>,
-// which supplies the medium haptic and the UI-thread press dip. Tokens drive
-// every size/color; the font is wired explicitly because TextInput doesn't
-// inherit it.
+// apricot action button. While a reply is generating the button is a Stop
+// square; otherwise it sends (light haptic via <Press> — the completion carries
+// the success haptic). Tokens drive every size/color; the font is wired
+// explicitly because TextInput doesn't inherit it.
 import React, { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SymbolView } from 'expo-symbols';
 import { gradients, palette, radius, spacing, type as typeTokens } from '../../theme/dusk';
 import { fontFamilyForWeight } from '../../theme/fonts';
 import { Glass } from './Glass';
 import { AppText } from './AppText';
 import { Press } from './Press';
 
-export function Composer({ onSend }: { onSend: (text: string) => void }) {
+export function Composer({
+  onSend,
+  streaming = false,
+  onStop,
+}: {
+  onSend: (text: string) => void;
+  /** A reply is in flight: the action button becomes Stop. */
+  streaming?: boolean;
+  onStop?: () => void;
+}) {
   const [text, setText] = useState('');
 
   const submit = () => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || streaming) return;
     onSend(trimmed);
     setText('');
   };
 
-  const canSend = text.trim().length > 0;
+  const canSend = text.trim().length > 0 && !streaming;
 
   return (
     <View style={styles.wrap}>
@@ -43,24 +53,40 @@ export function Composer({ onSend }: { onSend: (text: string) => void }) {
         />
       </Glass.Chrome>
 
-      <Press
-        commit
-        onPress={submit}
-        disabled={!canSend}
-        accessibilityRole="button"
-        accessibilityLabel="Send message"
-        style={[styles.send, { opacity: canSend ? 1 : 0.4 }]}
-      >
-        <LinearGradient
-          colors={gradients.cta.colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <AppText variant="title" color={palette.onSignature}>
-          ↑
-        </AppText>
-      </Press>
+      {streaming ? (
+        <Press
+          onPress={onStop}
+          accessibilityRole="button"
+          accessibilityLabel="Stop generating"
+          style={styles.send}
+        >
+          <LinearGradient
+            colors={gradients.cta.colors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <SymbolView name="stop.fill" size={16} tintColor={palette.onSignature} weight="semibold" />
+        </Press>
+      ) : (
+        <Press
+          onPress={submit}
+          disabled={!canSend}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          style={[styles.send, { opacity: canSend ? 1 : 0.4 }]}
+        >
+          <LinearGradient
+            colors={gradients.cta.colors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <AppText variant="title" color={palette.onSignature}>
+            ↑
+          </AppText>
+        </Press>
+      )}
     </View>
   );
 }

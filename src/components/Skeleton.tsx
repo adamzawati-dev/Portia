@@ -88,20 +88,20 @@ export function OverviewSkeleton() {
   );
 }
 
-/** Mirrors the chat thread: alternating bubble-shaped blocks. */
+/** Mirrors the chat thread: full-width Portia panels, short right-aligned user lines. */
 export function ChatSkeleton() {
-  const bubbles: { mine: boolean; width: DimensionValue; height: number }[] = [
-    { mine: false, width: '72%', height: 64 },
-    { mine: true, width: '46%', height: 44 },
-    { mine: false, width: '64%', height: 44 },
-    { mine: true, width: '34%', height: 44 },
-    { mine: false, width: '76%', height: 64 },
+  const rows: { mine: boolean; width: DimensionValue; height: number }[] = [
+    { mine: false, width: '100%', height: 72 },
+    { mine: true, width: '44%', height: 18 },
+    { mine: false, width: '100%', height: 56 },
+    { mine: true, width: '30%', height: 18 },
+    { mine: false, width: '100%', height: 72 },
   ];
   return (
     <View style={styles.chat}>
-      {bubbles.map((b, i) => (
-        <View key={i} style={[styles.bubbleRow, b.mine ? styles.rowUser : styles.rowPortia]}>
-          <Skeleton width={b.width} height={b.height} round={radius.card} />
+      {rows.map((r, i) => (
+        <View key={i} style={[styles.bubbleRow, r.mine ? styles.rowUser : styles.rowPortia]}>
+          <Skeleton width={r.width} height={r.height} round={r.mine ? 6 : radius.card} />
         </View>
       ))}
     </View>

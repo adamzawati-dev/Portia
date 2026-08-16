@@ -12,6 +12,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { api, setOnUnauthorized, setSessionToken } from '../api/client';
+import { clearAccountsCache } from '../api/accountsCache';
 import { supabase } from './supabase';
 import { signInWithApple } from './apple';
 
@@ -64,6 +65,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     async (session: Session | null) => {
       if (!session) {
         setSessionToken(null);
+        // Every sign-out path lands here (manual, 401 backstop, failed /me):
+        // drop the cached balances so one user's figures never greet another.
+        clearAccountsCache();
         setPhase('signedOut');
         return;
       }

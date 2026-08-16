@@ -1,10 +1,13 @@
 // src/hooks/useCountUp.ts
-// Animates a number from 0 up to `target` with an ease-out, for the Diagnostic's
-// hero figures. It only ever animates toward the real backend value — it never
-// invents a figure. The clock runs as a Reanimated timing on the UI thread; the
-// JS thread is only touched when the WHOLE-DOLLAR value changes (the reaction
-// rounds before crossing), which is what the tabular type renders anyway. When
-// `enabled` is false (Reduce Motion, or no figure), it snaps straight to target.
+// Animates a number toward `target` with an ease-out. It only ever animates
+// toward the real backend value — it never invents a figure. On first mount it
+// counts up from 0; when `target` changes later (a refresh) it animates from the
+// value currently on screen to the new one — the delta, not a restart. The clock
+// runs as a Reanimated timing on the UI thread; the JS thread is only touched
+// when the WHOLE-DOLLAR value changes (the reaction rounds before crossing).
+// Completion lands exactly on `target` — cents included — so the screen never
+// shows a rounded stand-in at rest. When `enabled` is false (Reduce Motion, or
+// no figure), it snaps straight to target.
 import { useEffect, useState } from 'react';
 import {
   Easing,
@@ -25,11 +28,15 @@ export function useCountUp(target: number, durationMs: number, enabled: boolean)
       setValue(target);
       return;
     }
-    progress.value = 0;
-    progress.value = withTiming(target, {
-      duration: durationMs,
-      easing: Easing.out(Easing.cubic),
-    });
+    // No reset: the timing starts from wherever the value currently sits.
+    progress.value = withTiming(
+      target,
+      { duration: durationMs, easing: Easing.out(Easing.cubic) },
+      (finished) => {
+        'worklet';
+        if (finished) runOnJS(setValue)(target);
+      },
+    );
     return () => cancelAnimation(progress);
   }, [target, durationMs, enabled, progress]);
 

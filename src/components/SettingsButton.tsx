@@ -1,14 +1,15 @@
 // src/components/SettingsButton.tsx
-// The signed-in app's account affordance: a small glass gear, top-right, opening a
-// native action sheet (Alert) — two settings don't earn a full surface yet. Holds:
-// adding another bank (the engine folds it in as its history loads; duplicates are
-// detected server-side and nothing changes) and sign out.
+// The signed-in app's account affordance: a small glass gear (floating chrome),
+// top-right, opening a native action sheet (Alert) — two settings don't earn a
+// full surface yet. Holds: adding another bank (the engine folds it in as its
+// history loads; duplicates are detected server-side) and sign out.
 import React from 'react';
-import { Alert, Pressable, StyleSheet } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { palette, radius, spacing } from '../../theme/dusk';
-import { GlassSurface } from './GlassSurface';
+import { Glass } from './Glass';
+import { Press } from './Press';
 import { useSession } from '../auth/session';
 import { connectBank, PlaidCanceled } from '../plaid/link';
 
@@ -48,17 +49,17 @@ export function SettingsButton() {
   };
 
   return (
-    <Pressable
+    <Press
       onPress={openSettings}
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel="Settings and sign out"
       style={[styles.wrap, { top: insets.top + spacing.xs }]}
     >
-      <GlassSurface radius={radius.emblem} style={styles.gear} lift={false}>
+      <Glass.Chrome radius={radius.emblem} style={styles.gear}>
         <SymbolView name="gearshape" size={18} tintColor={palette.textSecondary} weight="regular" />
-      </GlassSurface>
-    </Pressable>
+      </Glass.Chrome>
+    </Press>
   );
 }
 

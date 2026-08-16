@@ -1,15 +1,17 @@
 // src/components/TabBar.tsx
-// The app's two top-level surfaces, as a floating liquid-glass bar. Two tabs only
-// (Chat / Overview) — no nav library; MainTabs holds the active key. Active tab is
-// apricot (signature), inactive is tertiary. SF Symbols for the icons.
+// The app's two top-level surfaces, as a floating liquid-glass bar — chrome, so
+// it's the one place glass belongs. Two tabs only (Chat / Overview); MainTabs
+// holds the active key. Active tab is apricot (signature), inactive is tertiary.
+// Each tab is a <Press> (light haptic + UI-thread dip).
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { palette, radius, spacing } from '../../theme/dusk';
-import { GlassSurface } from './GlassSurface';
+import { Glass } from './Glass';
 import { AppText } from './AppText';
+import { Press } from './Press';
 
 export type TabKey = 'chat' | 'overview';
 
@@ -22,12 +24,12 @@ export function TabBar({ active, onChange }: { active: TabKey; onChange: (key: T
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.wrap, { paddingBottom: insets.bottom || spacing.md }]}>
-      <GlassSurface radius={radius.lg} style={styles.bar}>
+      <Glass.Chrome radius={radius.card} style={styles.bar}>
         {TABS.map((t) => {
           const on = t.key === active;
           const color = on ? palette.signature : palette.textTertiary;
           return (
-            <Pressable
+            <Press
               key={t.key}
               onPress={() => onChange(t.key)}
               style={styles.tab}
@@ -39,10 +41,10 @@ export function TabBar({ active, onChange }: { active: TabKey; onChange: (key: T
               <AppText variant="caption" color={color}>
                 {t.label}
               </AppText>
-            </Pressable>
+            </Press>
           );
         })}
-      </GlassSurface>
+      </Glass.Chrome>
     </View>
   );
 }

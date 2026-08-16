@@ -49,7 +49,8 @@ export const gradients = {
   cta: { colors: ['#FFC089', '#FF9E62'] as const },
 } as const;
 
-// Liquid-glass material. Real blur comes from the native bridge (see GlassSurface).
+// Liquid-glass material. Real blur comes from the native bridge (see Glass.tsx —
+// chrome only; content uses the flat Surface, whose fill/border also live here).
 // These tokens drive the fallback + the decorative layers (specular, edge, tint).
 export const glass = {
   tintFrom: 'rgba(255,220,225,0.11)',  // glass fill / fallback gradient start
@@ -67,9 +68,17 @@ export const glass = {
 } as const;
 
 export const radius = {
-  sm: 13, md: 17 /* buttons */, lg: 22 /* glass cards */, xl: 25 /* hero card */,
+  button: 14,
+  card:   24, // flat content surfaces + chrome bars
+  sheet:  32, // Glass.Sheet
+  chip:   999,
   emblem: 26, device: 34,
 } as const;
+
+/** Concentric rounding: a nested element's radius is the outer radius minus the
+ *  padding between them (floored so tight insets never go square-negative). */
+export const innerRadius = (outer: number, padding: number): number =>
+  Math.max(outer - padding, 2);
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;
 
@@ -96,12 +105,17 @@ export const type = {
   },
 } as const;
 
-// Motion — spring-based and physical. ALWAYS respect Reduce Motion.
+// Motion — spring-based and physical, run as Reanimated worklets on the UI thread
+// (never JS-thread Animated). ALWAYS respect Reduce Motion: consume these through
+// useMotion (src/hooks/useMotion), which zeroes durations and makes springs
+// immediate when it's on.
 export const motion = {
-  spring:       { damping: 18, stiffness: 180, mass: 1 }, // default surface motion
-  springSoft:   { damping: 22, stiffness: 120, mass: 1 }, // entrance / reveal
-  durationFast: 120, // specular tracking
-  durationBase: 240,
+  durations: { instant: 120, fast: 200, base: 260, slow: 400 },
+  springs: {
+    press:  { damping: 18, stiffness: 320, mass: 1 }, // touch feedback
+    sheet:  { damping: 24, stiffness: 260, mass: 1 }, // sheets / overlays
+    layout: { damping: 22, stiffness: 200, mass: 1 }, // entrances / layout shifts
+  },
   revealStagger: 90, // Diagnostic reveal staggers children by this (ms)
 } as const;
 

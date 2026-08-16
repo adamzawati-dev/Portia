@@ -1,28 +1,21 @@
 // src/screens/SmokeScreen.tsx
 // Phase-0 smoke test ONLY. No navigation, no real data. It exists to prove the
-// system end to end: Background -> GlassSurface (real glass on iOS 26, intentional
-// fallback elsewhere) -> Money (tabular, de-emphasized $) -> apricot CTA. Every
-// value on screen is a placeholder, clearly labelled as such.
-//
-// Note: a lone glass card is NOT wrapped in <GlassContainer> — the native container
-// traces a hard merged-glass rectangle around its contents. GlassContainer is for
-// grouping MULTIPLE surfaces so their effects merge.
+// system end to end: Background -> Surface (flat content card) -> Money (tabular,
+// de-emphasized $) -> apricot CTA via Press. Every value on screen is a
+// placeholder, clearly labelled as such.
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gradients, palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
-import { GlassSurface } from '../components/GlassSurface';
+import { Surface } from '../components/Surface';
 import { Money } from '../components/Money';
 import { AppText } from '../components/AppText';
+import { Press } from '../components/Press';
 
 function CtaButton({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.85 : 1 }]}
-    >
+    <Press commit onPress={onPress} accessibilityRole="button" style={styles.cta}>
       <LinearGradient
         colors={gradients.cta.colors}
         start={{ x: 0, y: 0 }}
@@ -32,7 +25,7 @@ function CtaButton({ label, onPress }: { label: string; onPress?: () => void }) 
       <AppText variant="title" color={palette.onSignature}>
         {label}
       </AppText>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -40,7 +33,7 @@ export function SmokeScreen() {
   return (
     <Background>
       <View style={styles.screen}>
-        <GlassSurface radius={radius.xl} interactive style={styles.card}>
+        <Surface radius={radius.card} style={styles.card}>
           <View style={styles.cardInner}>
             <AppText variant="overline" color={palette.textSecondary}>
               AVAILABLE BALANCE
@@ -56,7 +49,7 @@ export function SmokeScreen() {
               <CtaButton label="Connect an account" />
             </View>
           </View>
-        </GlassSurface>
+        </Surface>
       </View>
     </Background>
   );
@@ -83,7 +76,7 @@ const styles = StyleSheet.create({
   cta: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
-    borderRadius: radius.md,
+    borderRadius: radius.button,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',

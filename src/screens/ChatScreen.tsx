@@ -19,6 +19,7 @@ import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { MessageBubble, TypingBubble } from '../components/MessageBubble';
 import { Composer } from '../components/Composer';
+import { ChatSkeleton } from '../components/Skeleton';
 import { Message } from '../chat/types';
 import { api, ApiError } from '../api/client';
 
@@ -29,7 +30,8 @@ const uid = () => `m${Date.now()}-${nextId++}`;
 
 export function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<Message[]>([]);
+  // null = the first history fetch hasn't resolved -> the thread-shaped skeleton.
+  const [messages, setMessages] = useState<Message[] | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
@@ -60,18 +62,18 @@ export function ChatScreen() {
   }, []);
 
   const handleSend = useCallback((text: string) => {
-    setMessages((prev) => [...prev, { id: uid(), sender: 'user', text }]);
+    setMessages((prev) => [...(prev ?? []), { id: uid(), sender: 'user', text }]);
     setIsTyping(true);
     api
       .sendChat(text)
-      .then((reply) => setMessages((prev) => [...prev, ...reply.messages]))
+      .then((reply) => setMessages((prev) => [...(prev ?? []), ...reply.messages]))
       .catch((err) => {
         // Errors don't apologize and aren't vague — say what to do next.
         const line =
           err instanceof ApiError
             ? err.message
             : "I couldn't reach your data just now. Check your connection and try again.";
-        setMessages((prev) => [...prev, { id: uid(), sender: 'portia', text: line }]);
+        setMessages((prev) => [...(prev ?? []), { id: uid(), sender: 'portia', text: line }]);
       })
       .finally(() => setIsTyping(false));
   }, []);
@@ -81,7 +83,8 @@ export function ChatScreen() {
     [],
   );
 
-  const data = isTyping ? [...messages, TYPING_ITEM] : messages;
+  const loaded = messages ?? [];
+  const data = isTyping ? [...loaded, TYPING_ITEM] : loaded;
 
   return (
     <Background>
@@ -97,15 +100,21 @@ export function ChatScreen() {
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <FlatList
-            ref={listRef}
-            data={data}
-            keyExtractor={(m) => m.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            keyboardDismissMode="interactive"
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          />
+          {messages === null ? (
+            <View style={styles.flex}>
+              <ChatSkeleton />
+            </View>
+          ) : (
+            <FlatList
+              ref={listRef}
+              data={data}
+              keyExtractor={(m) => m.id}
+              renderItem={renderItem}
+              contentContainerStyle={styles.list}
+              keyboardDismissMode="interactive"
+              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            />
+          )}
           {/* The tab bar (or, while typing, the keyboard) owns the bottom inset. */}
           <View style={{ paddingBottom: spacing.sm }}>
             <Composer onSend={handleSend} />

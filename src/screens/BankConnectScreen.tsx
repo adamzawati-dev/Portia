@@ -1,8 +1,8 @@
 // src/screens/BankConnectScreen.tsx
 // The trust moment — the highest-stakes screen in the app. A normal person is about
-// to connect real bank data, so the design does LESS, not more: generous air, plain
-// (non-interactive) glass, signature spent only on the single CTA, no coral, no
-// pulse. The headline and three short assurances carry the privacy posture —
+// to connect real bank data, so the design does LESS, not more: generous air, flat
+// content surfaces (no glass — glass is chrome-only), signature spent only on the
+// single CTA, no coral, no pulse. The headline and three short assurances carry the privacy posture —
 // credentials never reach us, read-only, deletable — because a loud trust screen
 // reads as a scam.
 //
@@ -13,14 +13,15 @@
 // "Continue" telling the backend the user is done (POST /plaid/linking-done releases
 // the diagnostic hold) before onConnected routes onward.
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
-import { GlassSurface } from '../components/GlassSurface';
+import { Surface } from '../components/Surface';
+import { Press } from '../components/Press';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { api } from '../api/client';
 import { connectBank, PlaidCanceled } from '../plaid/link';
@@ -91,7 +92,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
             </AppText>
           </View>
 
-          <GlassSurface radius={radius.lg} style={styles.card}>
+          <Surface radius={radius.card} style={styles.card}>
             {linked.map((name, i) => (
               <View key={`${name}-${i}`} style={[styles.row, i > 0 && { marginTop: spacing.lg }]}>
                 <View style={styles.iconWell}>
@@ -107,7 +108,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
                 </AppText>
               </View>
             ))}
-          </GlassSurface>
+          </Surface>
 
           <View style={styles.footer}>
             {error ? (
@@ -115,7 +116,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
                 {error}
               </AppText>
             ) : null}
-            <Pressable
+            <Press
               onPress={handleConnect}
               disabled={connecting || finishing}
               accessibilityRole="button"
@@ -125,7 +126,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
               <AppText variant="title" color={palette.textSecondary}>
                 {connecting ? 'Opening Plaid…' : 'Add another account'}
               </AppText>
-            </Pressable>
+            </Press>
             <PrimaryButton
               label="Continue"
               icon="arrow.right"
@@ -156,7 +157,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
           </AppText>
         </View>
 
-        <GlassSurface radius={radius.lg} style={styles.card}>
+        <Surface radius={radius.card} style={styles.card}>
           {ASSURANCES.map((a, i) => (
             <View key={a.title} style={[styles.row, i > 0 && { marginTop: spacing.lg }]}>
               <View style={styles.iconWell}>
@@ -167,7 +168,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
               </AppText>
             </View>
           ))}
-        </GlassSurface>
+        </Surface>
 
         <View style={styles.footer}>
           {error ? (

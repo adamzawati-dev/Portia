@@ -1,14 +1,17 @@
 // src/components/Composer.tsx
-// Bottom composer: a glass text field + an apricot send button (the primary action,
-// so signature here is earned). Tokens drive every size/color; the font is wired
-// explicitly because TextInput doesn't inherit it.
+// Bottom composer: a glass text field (chrome — it floats over the thread) + an
+// apricot send button. Send is a commit action: it goes through <Press commit>,
+// which supplies the medium haptic and the UI-thread press dip. Tokens drive
+// every size/color; the font is wired explicitly because TextInput doesn't
+// inherit it.
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gradients, palette, radius, spacing, type as typeTokens } from '../../theme/dusk';
 import { fontFamilyForWeight } from '../../theme/fonts';
-import { GlassSurface } from './GlassSurface';
+import { Glass } from './Glass';
 import { AppText } from './AppText';
+import { Press } from './Press';
 
 export function Composer({ onSend }: { onSend: (text: string) => void }) {
   const [text, setText] = useState('');
@@ -24,7 +27,7 @@ export function Composer({ onSend }: { onSend: (text: string) => void }) {
 
   return (
     <View style={styles.wrap}>
-      <GlassSurface radius={radius.lg} lift={false} style={styles.field}>
+      <Glass.Chrome radius={radius.card} style={styles.field}>
         <TextInput
           style={styles.input}
           value={text}
@@ -38,14 +41,15 @@ export function Composer({ onSend }: { onSend: (text: string) => void }) {
           blurOnSubmit
           onSubmitEditing={submit}
         />
-      </GlassSurface>
+      </Glass.Chrome>
 
-      <Pressable
+      <Press
+        commit
         onPress={submit}
         disabled={!canSend}
         accessibilityRole="button"
         accessibilityLabel="Send message"
-        style={({ pressed }) => [styles.send, { opacity: !canSend ? 0.4 : pressed ? 0.85 : 1 }]}
+        style={[styles.send, { opacity: canSend ? 1 : 0.4 }]}
       >
         <LinearGradient
           colors={gradients.cta.colors}
@@ -56,7 +60,7 @@ export function Composer({ onSend }: { onSend: (text: string) => void }) {
         <AppText variant="title" color={palette.onSignature}>
           ↑
         </AppText>
-      </Pressable>
+      </Press>
     </View>
   );
 }

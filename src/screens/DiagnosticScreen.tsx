@@ -6,18 +6,26 @@
 // bank-link and the tabs (see the 'diagnostic' phase in src/auth/session).
 //
 // Boundary: every figure and line come from GET /diagnostic. The count-up only
-// animates toward the real value; nothing here is invented. Reduce Motion collapses
-// the whole thing to instant, static cards.
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+// animates toward the real value; nothing here is invented. All motion is
+// Reanimated on the UI thread; Reduce Motion collapses it to instant, static
+// cards (immediate springs + zero stagger via useMotion).
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { motion, palette, spacing } from '../../theme/dusk';
+import { palette, spacing } from '../../theme/dusk';
+import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { Money } from '../components/Money';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { useReducedMotion } from '../hooks/useReducedMotion';
+import { Press } from '../components/Press';
+import { useMotion, Motion } from '../hooks/useMotion';
 import { useCountUp } from '../hooks/useCountUp';
 import { api, Diagnostic, DiagnosticSegment } from '../api/client';
 
@@ -39,7 +47,7 @@ const WAIT_LINES = [
 const WAIT_LINE_MS = 8000;
 
 export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
-  const reduced = useReducedMotion();
+  const motion = useMotion();
   const [diag, setDiag] = useState<Diagnostic | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const [waitLine, setWaitLine] = useState(0);
@@ -96,17 +104,19 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   // row). Never silently skip — say something, then let them in.
   const empty = !!diag && diag.state !== 'pending' && segments.length === 0;
 
-  // A light tap each time a card lands (the first card included). .catch keeps it a
-  // no-op if the native module isn't present (e.g. an older build).
+  // The first card landing. Manual advances get their tap from <Press>; the
+  // auto-advance timer fires its own (below), so the two never double up.
   useEffect(() => {
-    if (!ready) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-  }, [ready, index]);
+    if (ready) haptic.tap();
+  }, [ready]);
 
   // Auto-advance, except on the last card (which waits on the CTA).
   useEffect(() => {
     if (!ready || isLast) return;
-    const t = setTimeout(() => setIndex((i) => i + 1), AUTO_MS);
+    const t = setTimeout(() => {
+      haptic.tap();
+      setIndex((i) => i + 1);
+    }, AUTO_MS);
     return () => clearTimeout(t);
   }, [ready, index, isLast]);
 
@@ -116,10 +126,10 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   };
 
   const finish = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    // Fire-and-forget: seeds Portia's opening line server-side so the chat continues
-    // what the reveal started. Never blocks this transition -- the chat screen's
-    // first history fetch collects it (with a brief empty-thread re-check).
+    // The CTA's <Press commit> supplies the haptic. Fire-and-forget: seeds
+    // Portia's opening line server-side so the chat continues what the reveal
+    // started. Never blocks this transition — the chat screen's first history
+    // fetch collects it (with a brief empty-thread re-check).
     api.continueDiagnostic().catch(() => {});
     onDone();
   };
@@ -158,59 +168,67 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   const segment = segments[index];
   return (
     <Background>
-      <Pressable style={styles.flex} onPress={isLast ? undefined : advance} accessibilityRole="button">
+      <Press
+        scaleTo={1}
+        style={styles.flex}
+        onPress={isLast ? undefined : advance}
+        accessibilityRole="button"
+      >
         <View style={styles.flex}>
           <Progress count={segments.length} index={index} />
-          <DiagnosticCard key={segment.id} segment={segment} reduced={reduced} />
+          <DiagnosticCard key={segment.id} segment={segment} motion={motion} />
           <Footer isLast={isLast} onDone={finish} />
         </View>
-      </Pressable>
+      </Press>
     </Background>
   );
 }
 
-function DiagnosticCard({ segment, reduced }: { segment: DiagnosticSegment; reduced: boolean }) {
+function DiagnosticCard({ segment, motion }: { segment: DiagnosticSegment; motion: Motion }) {
   const hasFigure = segment.figure != null;
-  const figure = useCountUp(segment.figure ?? 0, 1100, !reduced && hasFigure);
+  const figure = useCountUp(segment.figure ?? 0, 1100, !motion.reduced && hasFigure);
 
-  // Staggered entrance: label, figure, caption rise + fade in turn.
-  const anim = useRef([0, 1, 2].map(() => new Animated.Value(reduced ? 1 : 0))).current;
+  // Staggered entrance: label, figure, caption rise + fade in turn. The card
+  // remounts per segment (keyed by id), so this runs once per card. Zero stagger
+  // + immediate springs under Reduce Motion.
+  const label = useSharedValue(0);
+  const fig = useSharedValue(0);
+  const caption = useSharedValue(0);
   useEffect(() => {
-    if (reduced) return;
-    Animated.stagger(
-      motion.revealStagger,
-      anim.map((v) =>
-        Animated.spring(v, {
-          toValue: 1,
-          damping: motion.springSoft.damping,
-          stiffness: motion.springSoft.stiffness,
-          mass: motion.springSoft.mass,
-          useNativeDriver: true,
-        }),
-      ),
-    ).start();
-  }, [anim, reduced]);
+    const { revealStagger, springs } = motion;
+    label.value = withSpring(1, springs.layout);
+    fig.value = withDelay(revealStagger, withSpring(1, springs.layout));
+    caption.value = withDelay(revealStagger * 2, withSpring(1, springs.layout));
+  }, [motion, label, fig, caption]);
 
-  const entrance = (v: Animated.Value) => ({
-    opacity: v,
-    transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-  });
+  const labelRise = useAnimatedStyle(() => ({
+    opacity: label.value,
+    transform: [{ translateY: (1 - label.value) * 14 }],
+  }));
+  const figRise = useAnimatedStyle(() => ({
+    opacity: fig.value,
+    transform: [{ translateY: (1 - fig.value) * 14 }],
+  }));
+  const captionRise = useAnimatedStyle(() => ({
+    opacity: caption.value,
+    transform: [{ translateY: (1 - caption.value) * 14 }],
+  }));
 
   return (
     <View style={styles.cardWrap}>
-      <Animated.View style={entrance(anim[0])}>
+      <Animated.View style={labelRise}>
         <AppText variant="overline" color={palette.textTertiary} style={styles.label}>
           {segment.label}
         </AppText>
       </Animated.View>
 
       {hasFigure ? (
-        <Animated.View style={[styles.figure, entrance(anim[1])]}>
+        <Animated.View style={[styles.figure, figRise]}>
           <Money value={figure} variant="numHero" color={palette.signature} showCents={false} />
         </Animated.View>
       ) : null}
 
-      <Animated.View style={entrance(anim[2])}>
+      <Animated.View style={captionRise}>
         <AppText variant="title" color={palette.textSecondary} style={styles.caption}>
           {segment.caption}
         </AppText>

@@ -56,7 +56,7 @@ export function SignInScreen() {
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
             buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-            cornerRadius={radius.md}
+            cornerRadius={radius.button}
             onPress={handlePress}
             style={styles.appleButton}
           />

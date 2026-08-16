@@ -1,23 +1,26 @@
 // src/screens/OnboardingScreen.tsx
 // The pre-auth value sequence: three short beats in Portia's voice before the user
 // signs in. Anti-budget, anchored, honest, no verdicts. Each beat is one statement
-// on a single glass card over the Dusk environment, with a Continue and a Skip — the
-// whole thing is skippable at any point. The figure in beat two is illustrative
-// (the diagnostic teaser), shown in the apricot signature: this is the positive
-// moment the signature is reserved for.
+// on a single flat card (content, so no glass) over the Dusk environment, with a
+// Continue and a Skip — the whole thing is skippable at any point. The figure in
+// beat two is illustrative (the diagnostic teaser), shown in the apricot
+// signature: this is the positive moment the signature is reserved for.
 //
 // Accessibility is non-negotiable here: each statement is read as one VoiceOver
 // label, the progress reads "Step n of 3", Continue/Skip are labelled buttons, and
-// the entrance animation collapses to instant under Reduce Motion.
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+// the entrance collapses to instant under Reduce Motion (immediate spring via
+// useMotion).
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { motion, palette, radius, spacing } from '../../theme/dusk';
+import { palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
-import { GlassSurface } from '../components/GlassSurface';
+import { Surface } from '../components/Surface';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { useReducedMotion } from '../hooks/useReducedMotion';
+import { Press } from '../components/Press';
+import { useMotion } from '../hooks/useMotion';
 
 // A statement is a run of text segments so one span (a figure) can carry the
 // signature colour while the rest stays warm-white. `plain` is what VoiceOver reads.
@@ -48,34 +51,25 @@ const BEATS: Beat[] = [
 
 export function OnboardingScreen({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
-  const reduced = useReducedMotion();
+  const { springs } = useMotion();
   const [index, setIndex] = useState(0);
   const isLast = index === BEATS.length - 1;
   const beat = BEATS[index];
 
-  // Re-run the entrance each time the beat changes (instant under Reduce Motion).
-  const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  // Re-run the entrance each time the beat changes. UI-thread spring; under
+  // Reduce Motion the spring is immediate, so this is a plain appear.
+  const enter = useSharedValue(0);
   useEffect(() => {
-    if (reduced) {
-      enter.setValue(1);
-      return;
-    }
-    enter.setValue(0);
-    Animated.spring(enter, {
-      toValue: 1,
-      damping: motion.springSoft.damping,
-      stiffness: motion.springSoft.stiffness,
-      mass: motion.springSoft.mass,
-      useNativeDriver: true,
-    }).start();
-  }, [index, reduced, enter]);
+    enter.value = 0;
+    enter.value = withSpring(1, springs.layout);
+  }, [index, springs, enter]);
+
+  const entranceStyle = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [{ translateY: (1 - enter.value) * 16 }],
+  }));
 
   const advance = () => (isLast ? onDone() : setIndex((i) => i + 1));
-
-  const entranceStyle = {
-    opacity: enter,
-    transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-  };
 
   return (
     <Background>
@@ -95,7 +89,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
               <View key={i} style={[styles.dot, i === index ? styles.dotOn : styles.dotOff]} />
             ))}
           </View>
-          <Pressable
+          <Press
             onPress={onDone}
             hitSlop={12}
             accessibilityRole="button"
@@ -104,12 +98,12 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
             <AppText variant="caption" color={palette.textTertiary}>
               Skip
             </AppText>
-          </Pressable>
+          </Press>
         </View>
 
         <View style={styles.center}>
           <Animated.View style={entranceStyle}>
-            <GlassSurface radius={radius.xl} style={styles.card}>
+            <Surface radius={radius.card} style={styles.card}>
               <AppText
                 variant="display"
                 accessibilityLabel={beat.plain}
@@ -125,7 +119,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
                   ),
                 )}
               </AppText>
-            </GlassSurface>
+            </Surface>
           </Animated.View>
         </View>
 

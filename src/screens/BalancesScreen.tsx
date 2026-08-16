@@ -1,16 +1,19 @@
 // src/screens/BalancesScreen.tsx
 // The balances/overview moment — a surface the chat can't give you. Numbers are the
 // hero: one big apricot figure ("here's what's yours" — signature earned), then the
-// accounts beneath in a calm ledger. Every figure comes from GET /accounts; the app
-// sums nothing (the hero total is computed by the backend, per the contract).
+// accounts beneath in a calm ledger of flat cards (content, so no glass). Every
+// figure comes from GET /accounts; the app sums nothing (the hero total is computed
+// by the backend, per the contract). While loading, the screen shows its own shape
+// as a skeleton — never a spinner.
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { glass, palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
-import { GlassSurface } from '../components/GlassSurface';
+import { Surface } from '../components/Surface';
 import { Money } from '../components/Money';
+import { OverviewSkeleton } from '../components/Skeleton';
 import { api, AccountsOverview, Account, ApiError } from '../api/client';
 
 export function BalancesScreen() {
@@ -41,12 +44,12 @@ export function BalancesScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <AppText variant="overline" color={palette.textTertiary}>
-            AVAILABLE CASH
-          </AppText>
-          {data ? (
-            <>
+        {data ? (
+          <>
+            <View style={styles.hero}>
+              <AppText variant="overline" color={palette.textTertiary}>
+                AVAILABLE CASH
+              </AppText>
               <Money
                 value={data.summary.cashAvailable}
                 variant="numXL"
@@ -56,27 +59,34 @@ export function BalancesScreen() {
               <AppText variant="caption" color={palette.textTertiary}>
                 {data.summary.window}
               </AppText>
-            </>
-          ) : (
-            <AppText variant="body" color={palette.textSecondary} style={styles.heroFigure}>
-              {error ?? 'Loading…'}
-            </AppText>
-          )}
-        </View>
+            </View>
 
-        {data?.institutions.map((inst) => (
-          <GlassSurface key={inst.institutionName} radius={radius.lg} style={styles.card}>
-            <AppText variant="title" color={palette.textPrimary} style={styles.instName}>
-              {inst.institutionName}
-            </AppText>
-            {inst.accounts.map((acct, i) => (
-              <View key={acct.id}>
-                {i > 0 ? <View style={styles.divider} /> : null}
-                <AccountRow account={acct} />
-              </View>
+            {data.institutions.map((inst) => (
+              <Surface key={inst.institutionName} radius={radius.card} style={styles.card}>
+                <AppText variant="title" color={palette.textPrimary} style={styles.instName}>
+                  {inst.institutionName}
+                </AppText>
+                {inst.accounts.map((acct, i) => (
+                  <View key={acct.id}>
+                    {i > 0 ? <View style={styles.divider} /> : null}
+                    <AccountRow account={acct} />
+                  </View>
+                ))}
+              </Surface>
             ))}
-          </GlassSurface>
-        ))}
+          </>
+        ) : error ? (
+          <View style={styles.hero}>
+            <AppText variant="overline" color={palette.textTertiary}>
+              AVAILABLE CASH
+            </AppText>
+            <AppText variant="body" color={palette.textSecondary} style={styles.heroFigure}>
+              {error}
+            </AppText>
+          </View>
+        ) : (
+          <OverviewSkeleton />
+        )}
       </ScrollView>
     </Background>
   );

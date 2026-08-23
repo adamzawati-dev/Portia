@@ -52,7 +52,9 @@ export function extractHero(text: string): HeroFigure | null {
   for (const line of text.split('\n')) {
     const m = line.match(AMOUNT);
     if (!m) continue;
-    const cleaned = line.replace(/[*#`_]/g, '').trim();
+    // Strip markdown markers AND the streaming caret — it rides the live text
+    // and must never leak into a lifted label.
+    const cleaned = line.replace(/[*#`_▍]/g, '').trim();
     if (cleaned.length <= SHORT_LINE) {
       const label = cleaned
         .replace(m[0], '')

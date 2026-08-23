@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fontAssets } from './theme/fonts';
 import { palette, spacing } from './theme/dusk';
@@ -68,15 +69,17 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      {/* Bare environment while fonts load — avoids a flash of the wrong font. */}
-      {fontsLoaded ? (
-        <SessionProvider>
-          <Root />
-        </SessionProvider>
-      ) : (
-        <Background />
-      )}
+      <KeyboardProvider>
+        <StatusBar style="light" />
+        {/* Bare environment while fonts load — avoids a flash of the wrong font. */}
+        {fontsLoaded ? (
+          <SessionProvider>
+            <Root />
+          </SessionProvider>
+        ) : (
+          <Background />
+        )}
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

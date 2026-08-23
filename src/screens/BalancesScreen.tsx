@@ -23,12 +23,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { glass, gradients, palette, radius, spacing } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { Surface } from '../components/Surface';
+import { TAB_BAR_SPACE } from '../components/TabBar';
 import { Money } from '../components/Money';
 import { Press } from '../components/Press';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -178,7 +180,8 @@ export function BalancesScreen() {
 
   const contentPad = {
     paddingTop: insets.top + spacing.xxl,
-    paddingBottom: insets.bottom + spacing.xl,
+    // Clears the floating tab bar and the home indicator.
+    paddingBottom: insets.bottom + TAB_BAR_SPACE + spacing.md,
   };
 
   // ---- No data at all ----------------------------------------------------
@@ -261,9 +264,20 @@ export function BalancesScreen() {
   );
 
   const fadeH = insets.top + gradients.headerFade.tail;
+  const maskElement = (
+    <View style={styles.flexOne}>
+      <LinearGradient
+        colors={gradients.headerFade.mask}
+        locations={[0, insets.top / fadeH, 1]}
+        style={{ height: fadeH }}
+      />
+      <View style={[styles.flexOne, styles.maskSolid]} />
+    </View>
+  );
 
   return (
     <Background>
+      <MaskedView style={styles.flexOne} maskElement={maskElement}>
       <FlashList
         data={data.institutions}
         keyExtractor={(inst: Institution) => inst.institutionName}
@@ -291,13 +305,7 @@ export function BalancesScreen() {
           />
         }
       />
-      {/* Content dissolves under the status-bar zone instead of clipping. */}
-      <LinearGradient
-        pointerEvents="none"
-        colors={gradients.headerFade.colors}
-        locations={[0, insets.top / fadeH, 1]}
-        style={[styles.topFade, { height: fadeH }]}
-      />
+      </MaskedView>
     </Background>
   );
 }
@@ -362,11 +370,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.xl,
   },
-  topFade: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+  flexOne: {
+    flex: 1,
+  },
+  maskSolid: {
+    backgroundColor: '#000', // mask alpha only; never rendered to screen
   },
   hero: {
     marginBottom: spacing.xl,

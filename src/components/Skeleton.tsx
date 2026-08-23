@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chat: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl, // the grid both tabs sit on
     paddingTop: spacing.md,
   },
   bubbleRow: {

@@ -20,6 +20,10 @@ import { useMotion } from '../hooks/useMotion';
 
 export type TabKey = 'chat' | 'overview';
 
+// Vertical space the floating bar occupies above the safe-area inset — screens
+// add this to their bottom padding so content clears the chrome.
+export const TAB_BAR_SPACE = 84;
+
 const TABS: { key: TabKey; label: string; icon: SFSymbol }[] = [
   { key: 'chat', label: 'Chat', icon: 'bubble.left.fill' },
   { key: 'overview', label: 'Overview', icon: 'chart.pie.fill' },

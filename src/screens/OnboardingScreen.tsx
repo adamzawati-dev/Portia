@@ -10,9 +10,15 @@
 // label, the progress reads "Step n of 3", Continue/Skip are labelled buttons, and
 // the entrance collapses to instant under Reduce Motion (immediate spring via
 // useMotion).
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
@@ -51,16 +57,16 @@ const BEATS: Beat[] = [
 
 export function OnboardingScreen({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
-  const { springs } = useMotion();
+  const { reduced, durations, springs } = useMotion();
   const [index, setIndex] = useState(0);
   const isLast = index === BEATS.length - 1;
   const beat = BEATS[index];
 
-  // Re-run the entrance each time the beat changes. UI-thread spring; under
-  // Reduce Motion the spring is immediate, so this is a plain appear.
+  // Beat-to-beat: the old statement fades down fast, then the new one rises on
+  // the layout spring (the entrance effect below fires on the index change).
+  // All UI-thread; under Reduce Motion the swap is instant.
   const enter = useSharedValue(0);
   useEffect(() => {
-    enter.value = 0;
     enter.value = withSpring(1, springs.layout);
   }, [index, springs, enter]);
 
@@ -69,7 +75,23 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
     transform: [{ translateY: (1 - enter.value) * 16 }],
   }));
 
-  const advance = () => (isLast ? onDone() : setIndex((i) => i + 1));
+  // next === null -> leave onboarding entirely.
+  const goTo = useCallback(
+    (next: number | null) => {
+      const apply = () => (next == null ? onDone() : setIndex(next));
+      if (reduced) {
+        apply();
+        return;
+      }
+      enter.value = withTiming(0, { duration: durations.instant }, (finished) => {
+        'worklet';
+        if (finished) runOnJS(apply)();
+      });
+    },
+    [reduced, durations, enter, onDone],
+  );
+
+  const advance = () => goTo(isLast ? null : index + 1);
 
   return (
     <Background>
@@ -90,7 +112,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
             ))}
           </View>
           <Press
-            onPress={onDone}
+            onPress={() => goTo(null)}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Skip the intro"

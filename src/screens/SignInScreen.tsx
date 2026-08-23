@@ -11,6 +11,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { palette, radius, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
+import { Press } from '../components/Press';
 import { useSession } from '../auth/session';
 import { APPLE_CANCELED } from '../auth/apple';
 
@@ -49,9 +50,21 @@ export function SignInScreen() {
 
         <View style={styles.actions}>
           {error ? (
-            <AppText variant="caption" color={palette.attention} style={styles.error}>
-              {error}
-            </AppText>
+            <View style={styles.errorRow}>
+              <AppText variant="caption" color={palette.attention} style={styles.error}>
+                {error}
+              </AppText>
+              <Press
+                onPress={handlePress}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Try signing in again"
+              >
+                <AppText variant="caption" color={palette.signature}>
+                  Try again
+                </AppText>
+              </Press>
+            </View>
           ) : null}
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
@@ -92,6 +105,12 @@ const styles = StyleSheet.create({
   },
   error: {
     textAlign: 'center',
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
   fineprint: {
     textAlign: 'center',

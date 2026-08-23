@@ -104,17 +104,18 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   // row). Never silently skip — say something, then let them in.
   const empty = !!diag && diag.state !== 'pending' && segments.length === 0;
 
-  // The first card landing. Manual advances get their tap from <Press>; the
-  // auto-advance timer fires its own (below), so the two never double up.
+  // Each card landing is a commit — a truth dropped. The first card fires here;
+  // manual advances get their commit from the full-screen <Press commit>; the
+  // auto-advance timer fires its own (below). The three never double up.
   useEffect(() => {
-    if (ready) haptic.tap();
+    if (ready) haptic.commit();
   }, [ready]);
 
   // Auto-advance, except on the last card (which waits on the CTA).
   useEffect(() => {
     if (!ready || isLast) return;
     const t = setTimeout(() => {
-      haptic.tap();
+      haptic.commit();
       setIndex((i) => i + 1);
     }, AUTO_MS);
     return () => clearTimeout(t);
@@ -169,6 +170,7 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   return (
     <Background>
       <Press
+        commit
         scaleTo={1}
         style={styles.flex}
         onPress={isLast ? undefined : advance}
@@ -180,13 +182,32 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
           <Footer isLast={isLast} onDone={finish} />
         </View>
       </Press>
+      {/* The reveal is skippable — same door as finishing, without the tour. */}
+      <SkipButton onSkip={finish} />
     </Background>
+  );
+}
+
+function SkipButton({ onSkip }: { onSkip: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Press
+      onPress={onSkip}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel="Skip to the app"
+      style={[styles.skip, { top: insets.top + spacing.md }]}
+    >
+      <AppText variant="caption" color={palette.textTertiary}>
+        Skip
+      </AppText>
+    </Press>
   );
 }
 
 function DiagnosticCard({ segment, motion }: { segment: DiagnosticSegment; motion: Motion }) {
   const hasFigure = segment.figure != null;
-  const figure = useCountUp(segment.figure ?? 0, 1100, !motion.reduced && hasFigure);
+  const figure = useCountUp(segment.figure ?? 0, motion.durations.base, !motion.reduced && hasFigure);
 
   // Staggered entrance: label, figure, caption rise + fade in turn. The card
   // remounts per segment (keyed by id), so this runs once per card. Zero stagger
@@ -313,5 +334,10 @@ const styles = StyleSheet.create({
   },
   hint: {
     textAlign: 'center',
+  },
+  skip: {
+    position: 'absolute',
+    right: spacing.xl,
+    zIndex: 5,
   },
 });

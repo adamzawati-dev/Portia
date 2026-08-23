@@ -18,11 +18,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { palette, radius, spacing } from '../../theme/dusk';
+import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { Surface } from '../components/Surface';
 import { Press } from '../components/Press';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { OverviewSkeleton } from '../components/Skeleton';
 import { api } from '../api/client';
 import { connectBank, PlaidCanceled } from '../plaid/link';
 
@@ -37,7 +39,9 @@ const ASSURANCES: Assurance[] = [
 export function BankConnectScreen({ onConnected }: { onConnected: () => void }) {
   const insets = useSafeAreaInsets();
   const [connecting, setConnecting] = useState(false);
-  const [finishing, setFinishing] = useState(false);
+  // While the exchange or the wrap-up round-trip runs, the screen becomes the
+  // Overview's own skeleton with one status line — never a blocking spinner.
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Institutions linked THIS session — for a first-time user that is everything they
   // have, so no round-trip needed to show "connected so far".
@@ -47,14 +51,19 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
     setError(null);
     setConnecting(true);
     try {
-      const result = await connectBank();
+      // The syncing view takes over once the Plaid sheet succeeds and the
+      // exchange starts (the sheet covers the screen until then).
+      const result = await connectBank(() => setSyncing(true));
+      setSyncing(false);
       setConnecting(false);
       if (result.duplicate) {
         setError('That bank was already connected — nothing changed.');
         return;
       }
+      haptic.success();
       setLinked((prev) => [...prev, ...result.linked.map((l) => l.institutionName)]);
     } catch (e) {
+      setSyncing(false);
       setConnecting(false);
       if (e instanceof PlaidCanceled) return; // backed out — not an error
       setError("Couldn't connect that bank. Try again.");
@@ -63,15 +72,33 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
 
   const handleContinue = async () => {
     setError(null);
-    setFinishing(true);
+    setSyncing(true);
     try {
       await api.finishLinking(); // releases the diagnostic hold server-side
-      onConnected(); // routes away; leave `finishing` true through the unmount
+      onConnected(); // routes into the Diagnostic; syncing stays on through the unmount
     } catch {
-      setFinishing(false);
+      setSyncing(false);
       setError("Couldn't wrap that up. Try again.");
     }
   };
+
+  if (syncing) {
+    return (
+      <Background>
+        <View
+          style={[
+            styles.root,
+            { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
+          ]}
+        >
+          <AppText variant="title" color={palette.textSecondary} style={styles.syncLine}>
+            Pulling your accounts…
+          </AppText>
+          <OverviewSkeleton />
+        </View>
+      </Background>
+    );
+  }
 
   if (linked.length > 0) {
     return (
@@ -118,7 +145,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
             ) : null}
             <Press
               onPress={handleConnect}
-              disabled={connecting || finishing}
+              disabled={connecting}
               accessibilityRole="button"
               style={styles.addAnother}
             >
@@ -127,12 +154,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
                 {connecting ? 'Opening Plaid…' : 'Add another account'}
               </AppText>
             </Press>
-            <PrimaryButton
-              label="Continue"
-              icon="arrow.right"
-              onPress={handleContinue}
-              loading={finishing}
-            />
+            <PrimaryButton label="Continue" icon="arrow.right" onPress={handleContinue} />
           </View>
         </View>
       </Background>
@@ -201,6 +223,9 @@ const styles = StyleSheet.create({
   },
   hero: {
     marginTop: spacing.xl,
+  },
+  syncLine: {
+    marginBottom: spacing.xl,
   },
   subhead: {
     marginTop: spacing.md,

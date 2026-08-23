@@ -16,12 +16,18 @@ export class PlaidCanceled extends Error {
   }
 }
 
-export async function connectBank(): Promise<ExchangeResult> {
+/**
+ * @param onSyncing Fires once the Plaid sheet has succeeded and the exchange
+ *   round-trip begins — the caller's cue to show its syncing state (the sheet
+ *   no longer covers the screen from here on).
+ */
+export async function connectBank(onSyncing?: () => void): Promise<ExchangeResult> {
   const { linkToken } = await api.createLinkToken();
 
   // Against the mock there is no real Plaid sheet (the token is fake), so simulate
   // a successful link to keep the onboarding flow exercisable end to end.
   if (USE_MOCK) {
+    onSyncing?.();
     return api.exchangePublicToken({
       publicToken: 'mock-public-token',
       institution: { id: 'ins_mock', name: 'Wells Fargo' },
@@ -32,6 +38,7 @@ export async function connectBank(): Promise<ExchangeResult> {
   return new Promise<ExchangeResult>((resolve, reject) => {
     open({
       onSuccess: (success: LinkSuccess) => {
+        onSyncing?.();
         const inst = success.metadata.institution;
         api
           .exchangePublicToken({

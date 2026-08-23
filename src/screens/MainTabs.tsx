@@ -6,9 +6,9 @@
 // that fades and slides out over the FIRST 30% of the keyboard's rise, driven
 // by the same UI-thread keyboard progress the composer rides — no jump-cuts.
 // Screens reserve TAB_BAR_SPACE at the bottom so content clears the bar.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { palette } from '../../theme/dusk';
 import { ChatScreen } from './ChatScreen';
@@ -23,19 +23,7 @@ export function MainTabs() {
   const [tab, setTab] = useState<TabKey>('chat');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const keyboardVisible = useKeyboardVisible(); // touch routing only; visuals are animated
-  const { reduced, durations, springs } = useMotion();
-
-  // Minimize-on-scroll: screens report their scroll trend; the bar shrinks
-  // toward the active tab on scroll-away, expands on scroll-back or tap.
-  const collapse = useSharedValue(0);
-  const [collapsed, setCollapsed] = useState(false);
-  const setBarCollapsed = useCallback(
-    (down: boolean) => {
-      setCollapsed(down);
-      collapse.value = withSpring(down ? 1 : 0, springs.layout);
-    },
-    [collapse, springs],
-  );
+  const { reduced, durations } = useMotion();
 
   // 1 = chat fully visible; overview is the complement. Snap under Reduce Motion.
   const chatAlpha = useSharedValue(1);
@@ -64,13 +52,13 @@ export function MainTabs() {
           style={[StyleSheet.absoluteFill, chatStyle]}
           pointerEvents={tab === 'chat' ? 'auto' : 'none'}
         >
-          <ChatScreen onScrollTrend={setBarCollapsed} />
+          <ChatScreen />
         </Animated.View>
         <Animated.View
           style={[StyleSheet.absoluteFill, overviewStyle]}
           pointerEvents={tab === 'overview' ? 'auto' : 'none'}
         >
-          <BalancesScreen onScrollTrend={setBarCollapsed} />
+          <BalancesScreen />
         </Animated.View>
       </View>
 
@@ -81,13 +69,8 @@ export function MainTabs() {
       >
         <SettingsButton onPress={() => setSettingsOpen(true)} />
         <View style={styles.tabBarSlot} pointerEvents="box-none">
-          <TabBar
-            active={tab}
-            onChange={setTab}
-            collapse={collapse}
-            collapsed={collapsed}
-            onExpand={() => setBarCollapsed(false)}
-          />
+          {/* Overview has no composer; the nav floats alone — lift it a step. */}
+          <TabBar active={tab} onChange={setTab} prominent={tab === 'overview'} />
         </View>
       </Animated.View>
 

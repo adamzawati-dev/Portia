@@ -58,7 +58,7 @@ function ago(fetchedAt: number, now: number): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-export function BalancesScreen({ onScrollTrend }: { onScrollTrend?: (down: boolean) => void }) {
+export function BalancesScreen() {
   const insets = useSafeAreaInsets();
   const { reduced, durations, cardStagger } = useMotion();
 
@@ -143,25 +143,6 @@ export function BalancesScreen({ onScrollTrend }: { onScrollTrend?: (down: boole
     load(true);
   }, [load]);
 
-  // Bar trend: scrolling into the ledger minimizes the bar; scrolling back
-  // toward the hero (or resting there) expands it.
-  const lastY = useRef(0);
-  const lastTrend = useRef(false);
-  const onListScroll = useCallback(
-    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      const y = e.nativeEvent.contentOffset.y;
-      const dy = y - lastY.current;
-      lastY.current = y;
-      let trend = lastTrend.current;
-      if (y < 60) trend = false;
-      else if (Math.abs(dy) > 8) trend = dy > 0;
-      if (trend !== lastTrend.current) {
-        lastTrend.current = trend;
-        onScrollTrend?.(trend);
-      }
-    },
-    [onScrollTrend],
-  );
 
   // Keeps the "updated x ago" caption honest while the screen sits open.
   const [now, setNow] = useState(() => Date.now());
@@ -325,8 +306,6 @@ export function BalancesScreen({ onScrollTrend }: { onScrollTrend?: (down: boole
         contentContainerStyle={{ paddingHorizontal: spacing.xl, ...contentPad }}
         bounces
         indicatorStyle="white"
-        onScroll={onListScroll}
-        scrollEventThrottle={32}
         scrollIndicatorInsets={{ top: insets.top, bottom: spacing.sm }}
         refreshControl={
           <RefreshControl

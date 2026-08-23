@@ -76,6 +76,14 @@ export const glass = {
   fallbackFill: 'rgba(58,19,38,0.72)',
 } as const;
 
+// Bottom chrome — quiet surfaces, not glass. Fills derive from the env ink;
+// hierarchy comes from spacing/opacity/apricot, never outlines.
+export const chrome = {
+  composerFill: 'rgba(34,10,34,0.78)', // envBase, translucent
+  composerFillFocus: 'rgba(44,14,44,0.86)', // envTop — the focus "lighten"
+  border: 'rgba(255,255,255,0.08)', // at most 1px, at most this
+} as const;
+
 export const radius = {
   button: 14,
   card:   24, // flat content surfaces + chrome bars

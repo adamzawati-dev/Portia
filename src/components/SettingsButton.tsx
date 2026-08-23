@@ -30,7 +30,7 @@ export function SettingsButton({ onPress }: { onPress: () => void }) {
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    right: spacing.lg,
+    right: spacing.xl, // the xl gutter both tabs' content sits on
     zIndex: 10,
   },
   gear: {

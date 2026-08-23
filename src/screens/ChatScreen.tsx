@@ -1,12 +1,13 @@
 // src/screens/ChatScreen.tsx
-// The chat surface. Full-width turns (Portia on a subtle flat tint, the user
-// plain and right-aligned), a keyboard-flush glass composer, and a streaming-
-// shaped reply pipeline: pulsing dot before the first token, tokens appending
-// into a stable footer row with a blinking caret, Stop in the composer, and
-// auto-follow that yields to the reader (a "Latest" pill appears once they
-// scroll up). The seam is still request/response — src/chat/stream presents the
-// arrived reply as a token stream, so this screen is already wired for the real
-// streaming seam. It renders exactly what arrives and computes nothing.
+// The chat surface. Full-width assistant prose marked by an apricot rule (key
+// figure lifted hero-size), compact user chips, a keyboard-flush glass
+// composer, and a streaming-shaped reply pipeline: honest thinking-status
+// lines before the first token, tokens appending into a stable footer row
+// with a blinking caret, Stop in the composer, and auto-follow that yields to
+// the reader (a "Latest" pill appears once they scroll up). The seam is still
+// request/response — src/chat/stream presents the arrived reply as a token
+// stream, so this screen is already wired for the real streaming seam. It
+// renders exactly what arrives and computes nothing.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
@@ -24,7 +25,7 @@ import { glass, palette, radius, spacing } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
-import { MessageRow, StreamingRow, WaitingDot } from '../components/MessageRow';
+import { MessageRow, StreamingRow, ThinkingSteps } from '../components/MessageRow';
 import { Composer } from '../components/Composer';
 import { Glass } from '../components/Glass';
 import { Press } from '../components/Press';
@@ -223,7 +224,7 @@ export function ChatScreen() {
 
   const footer = pending ? (
     pending.phase === 'waiting' ? (
-      <WaitingDot />
+      <ThinkingSteps />
     ) : (
       <StreamingRow text={pending.text} caretOn={caretOn} />
     )
@@ -336,12 +337,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
   },
   list: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
   },
@@ -349,7 +350,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },

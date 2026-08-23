@@ -274,8 +274,9 @@ export function BalancesScreen() {
 function InstitutionCard({ inst }: { inst: Institution }) {
   return (
     <Surface radius={radius.card} style={styles.card}>
-      <AppText variant="title" color={palette.textPrimary} style={styles.instName}>
-        {inst.institutionName}
+      {/* Institution as a quiet label — the figures own the card. */}
+      <AppText variant="overline" color={palette.textTertiary} style={styles.instName}>
+        {inst.institutionName.toUpperCase()}
       </AppText>
       {inst.accounts.map((acct, i) => (
         <View key={acct.id}>
@@ -290,7 +291,7 @@ function InstitutionCard({ inst }: { inst: Institution }) {
 function AccountRow({ account }: { account: Account }) {
   const isCredit = account.type === 'credit';
   return (
-    <View>
+    <View style={styles.acct}>
       <View style={styles.acctRow}>
         <View style={styles.acctLeft}>
           <AppText variant="body" color={palette.textPrimary}>
@@ -300,6 +301,7 @@ function AccountRow({ account }: { account: Account }) {
             ···· {account.mask}
           </AppText>
         </View>
+        {/* Figures share one right axis; qualifiers hang under them, muted. */}
         <View style={styles.acctRight}>
           <Money value={isCredit ? account.current : account.available} variant="numSM" />
           {isCredit ? (
@@ -307,17 +309,19 @@ function AccountRow({ account }: { account: Account }) {
               owed
             </AppText>
           ) : null}
+          {isCredit && account.projected != null ? (
+            <View style={styles.projRow}>
+              <AppText variant="caption" color={palette.textTertiary}>
+                Projected:
+              </AppText>
+              <Money value={account.projected} variant="numSM" color={palette.textTertiary} />
+              <AppText variant="caption" color={palette.textTertiary}>
+                once pending clears
+              </AppText>
+            </View>
+          ) : null}
         </View>
       </View>
-
-      {isCredit && account.projected != null ? (
-        <View style={styles.projRow}>
-          <AppText variant="caption" color={palette.textTertiary}>
-            Projected once pending clears
-          </AppText>
-          <Money value={account.projected} variant="numSM" color={palette.textSecondary} />
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -353,18 +357,21 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   card: {
-    padding: spacing.lg,
-    marginTop: spacing.md,
+    padding: spacing.xl, // roomier: the ledger breathes
+    marginTop: spacing.lg,
   },
   instName: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: glass.border,
   },
+  acct: {
+    paddingVertical: spacing.xs,
+  },
   acctRow: {
-    height: ACCOUNT_ROW_H,
+    minHeight: ACCOUNT_ROW_H,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -375,12 +382,12 @@ const styles = StyleSheet.create({
   },
   acctRight: {
     alignItems: 'flex-end',
+    gap: 2,
   },
   projRow: {
-    height: PROJECTED_ROW_H,
+    minHeight: PROJECTED_ROW_H,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    opacity: 0.85,
+    gap: spacing.xs,
   },
 });

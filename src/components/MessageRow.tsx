@@ -12,7 +12,7 @@
 // While Portia works, ThinkingSteps shows honest progress lines (institution
 // names come from the last-known accounts cache — real data, never invented)
 // that the answer replaces when the first token lands.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -21,30 +21,85 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { glass, palette, radius, spacing } from '../../theme/dusk';
+import { haptic } from '../../theme/haptics';
 import { AppText } from './AppText';
 import { Money } from './Money';
 import { Press } from './Press';
 import { MessageProse, extractHero } from '../chat/markdown';
 import { Message } from '../chat/types';
 import { useMotion } from '../hooks/useMotion';
+import { useCountUp } from '../hooks/useCountUp';
 import { getAccountsCacheSync } from '../api/accountsCache';
 
 // Rendering an amount the backend wrote: parse for display only, never math.
 const amountValue = (amount: string) => Number(amount.replace(/[$,]/g, ''));
 
-function AssistantTurn({ text }: { text: string }) {
+// The hero figure. Live (streaming in): counts up over the slow duration with
+// a tick at start and a commit as it settles — the number arrives like an
+// object landing. Committed/history rows show it at rest, so the swap from
+// stream to committed never re-animates or double-fires haptics. Reduce
+// Motion: appears at its final value instantly (useCountUp disabled).
+function HeroAmount({ amount, live }: { amount: string; live: boolean }) {
+  const { reduced, durations } = useMotion();
+  const target = amountValue(amount);
+  const animate = live && !reduced;
+  const value = useCountUp(target, durations.slow, animate);
+
+  const ticked = useRef(false);
+  useEffect(() => {
+    if (animate && !ticked.current) {
+      ticked.current = true;
+      haptic.tick();
+    }
+  }, [animate]);
+
+  const settled = useRef(false);
+  useEffect(() => {
+    if (animate && !settled.current && value === target) {
+      settled.current = true;
+      haptic.commit();
+    }
+  }, [animate, value, target]);
+
+  return (
+    <Money value={value} variant="numXL" color={palette.signature} showCents={amount.includes('.')} />
+  );
+}
+
+// Receipts: flat chips naming where the figures come from. The contract's
+// replies carry no per-message source list yet, so this names the linked
+// institutions from the accounts cache — real names, only what's true. Tap is
+// acknowledged (light haptic); no action behind it yet.
+function Receipts() {
+  const names = getAccountsCacheSync()?.data.institutions.map((i) => i.institutionName) ?? [];
+  if (names.length === 0) return null;
+  return (
+    <View style={styles.receipts}>
+      {names.map((name) => (
+        <Press
+          key={name}
+          onPress={() => {}}
+          accessibilityRole="button"
+          accessibilityLabel={`Source: ${name}`}
+          style={styles.receipt}
+        >
+          <AppText variant="caption" color={palette.textTertiary}>
+            {name}
+          </AppText>
+        </Press>
+      ))}
+    </View>
+  );
+}
+
+function AssistantTurn({ text, live = false }: { text: string; live?: boolean }) {
   const hero = extractHero(text);
   return (
     <View style={styles.assistant}>
       <View style={styles.rule} />
       {hero ? (
         <View style={styles.hero}>
-          <Money
-            value={amountValue(hero.amount)}
-            variant="numXL"
-            color={palette.signature}
-            showCents={hero.amount.includes('.')}
-          />
+          <HeroAmount amount={hero.amount} live={live} />
           {hero.label ? (
             <AppText variant="overline" color={palette.textTertiary} style={styles.heroLabel}>
               {hero.label.toUpperCase()}
@@ -53,6 +108,7 @@ function AssistantTurn({ text }: { text: string }) {
         </View>
       ) : null}
       <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
+      {live ? null : <Receipts />}
     </View>
   );
 }
@@ -92,7 +148,7 @@ export const MessageRow = React.memo(function MessageRow({
 
 /** The reply-in-flight: same layout as a finished assistant turn, plus caret. */
 export function StreamingRow({ text, caretOn }: { text: string; caretOn: boolean }) {
-  return <AssistantTurn text={caretOn ? `${text}▍` : text} />;
+  return <AssistantTurn text={caretOn ? `${text}▍` : text} live />;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,5 +238,17 @@ const styles = StyleSheet.create({
   },
   thinkingLine: {
     marginBottom: spacing.xs,
+  },
+  receipts: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  receipt: {
+    backgroundColor: glass.tintFrom,
+    borderRadius: radius.chip,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
 });

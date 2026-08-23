@@ -20,8 +20,10 @@ import {
   View,
 } from 'react-native';
 import { SymbolView } from 'expo-symbols';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { glass, palette, radius, spacing } from '../../theme/dusk';
+import { glass, gradients, palette, radius, spacing } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
@@ -41,6 +43,9 @@ const uid = () => `m${Date.now()}-${nextId++}`;
 // Within this distance of the bottom the thread auto-follows new tokens.
 const NEAR_BOTTOM_PX = 80;
 const CARET_BLINK_MS = 530;
+// Fixed header: title block height below the status bar; content scrolls under
+// it and dissolves through the gradients.headerFade tail.
+const TITLE_H = 36;
 
 // The empty thread's invitation to act — three on-voice openers, tap to send.
 const SUGGESTED_PROMPTS = [
@@ -53,7 +58,8 @@ type Pending = { phase: 'waiting' | 'streaming'; text: string };
 
 export function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const { reduced } = useMotion();
+  const { reduced, durations, cardStagger } = useMotion();
+  const headerH = insets.top + TITLE_H;
   // null = the first history fetch hasn't resolved -> the thread-shaped skeleton.
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -234,21 +240,16 @@ export function ChatScreen() {
 
   return (
     <Background>
-      <View style={[styles.root, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <AppText variant="title" color={palette.textPrimary}>
-            Portia
-          </AppText>
-          {/* Right corner is owned by the account gear (see MainTabs). */}
-        </View>
-
+      <View style={styles.root}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.flex}>
             {messages === null ? (
-              <ChatSkeleton />
+              <View style={{ paddingTop: headerH + spacing.md }}>
+                <ChatSkeleton />
+              </View>
             ) : emptyThread ? (
               <View style={styles.emptyWrap}>
                 {historyFailed ? (
@@ -268,18 +269,26 @@ export function ChatScreen() {
                     </Press>
                   </View>
                 ) : null}
-                {SUGGESTED_PROMPTS.map((prompt) => (
-                  <Press
+                {SUGGESTED_PROMPTS.map((prompt, i) => (
+                  <Animated.View
                     key={prompt}
-                    onPress={() => handleSend(prompt)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Ask: ${prompt}`}
-                    style={styles.chip}
+                    entering={
+                      reduced
+                        ? undefined
+                        : FadeInUp.duration(durations.fast).delay(150 + i * cardStagger)
+                    }
                   >
-                    <AppText variant="body" color={palette.textSecondary}>
-                      {prompt}
-                    </AppText>
-                  </Press>
+                    <Press
+                      onPress={() => handleSend(prompt)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ask: ${prompt}`}
+                      style={styles.chip}
+                    >
+                      <AppText variant="body" color={palette.textSecondary}>
+                        {prompt}
+                      </AppText>
+                    </Press>
+                  </Animated.View>
                 ))}
               </View>
             ) : (
@@ -289,11 +298,14 @@ export function ChatScreen() {
                 keyExtractor={(m) => m.id}
                 renderItem={renderItem}
                 ListFooterComponent={footer}
-                contentContainerStyle={styles.list}
+                contentContainerStyle={[styles.list, { paddingTop: headerH + spacing.md }]}
                 keyboardDismissMode="interactive"
                 onScroll={onScroll}
                 scrollEventThrottle={32}
                 onContentSizeChange={onContentSizeChange}
+                bounces
+                indicatorStyle="white"
+                scrollIndicatorInsets={{ top: headerH, bottom: spacing.sm }}
               />
             )}
 
@@ -325,6 +337,22 @@ export function ChatScreen() {
             <Composer onSend={handleSend} streaming={pending != null} onStop={handleStop} />
           </View>
         </KeyboardAvoidingView>
+
+        {/* Fixed header over the thread: content dissolves under it through the
+            fade tail instead of clipping against the title. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={gradients.headerFade.colors}
+          locations={[0, headerH / (headerH + gradients.headerFade.tail), 1]}
+          style={[styles.headerOverlay, { height: headerH + gradients.headerFade.tail }]}
+        >
+          <View style={[styles.header, { paddingTop: insets.top }]}>
+            <AppText variant="title" color={palette.textPrimary}>
+              Portia
+            </AppText>
+            {/* Right corner is owned by the account gear (see MainTabs). */}
+          </View>
+        </LinearGradient>
       </View>
     </Background>
   );
@@ -333,12 +361,18 @@ export function ChatScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
+    height: undefined,
     paddingBottom: spacing.xs,
   },
   list: {

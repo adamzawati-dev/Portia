@@ -47,6 +47,13 @@ export const gradients = {
     locations: [0, 0.62, 1] as const,
   },
   cta: { colors: ['#FFC089', '#FF9E62'] as const },
+  // fixed-header scrim: envTop, solid down through the header, dissolving over
+  // the fade tail so content melts under the header instead of clipping.
+  headerFade: {
+    solid: 'rgba(44,14,44,0.96)', // envTop #2C0E2C at header opacity
+    colors: ['rgba(44,14,44,0.96)', 'rgba(44,14,44,0.96)', 'rgba(44,14,44,0)'] as const,
+    tail: 40, // px of dissolve below the header content
+  },
 } as const;
 
 // Liquid-glass material. Real blur comes from the native bridge (see Glass.tsx —

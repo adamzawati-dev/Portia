@@ -14,10 +14,17 @@
 // staleness caption tells that story.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, RefreshControl, StyleSheet, View } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { glass, palette, radius, spacing } from '../../theme/dusk';
+import { glass, gradients, palette, radius, spacing } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
@@ -133,6 +140,17 @@ export function BalancesScreen() {
   }, []);
   const stale = fetchedAt != null && now - fetchedAt > STALE_MS;
 
+  // The freshness line pulses once when fresh figures land from the network.
+  const captionPulse = useSharedValue(1);
+  useEffect(() => {
+    if (fetchedAt == null || !networkLanded.current || reduced) return;
+    captionPulse.value = withSequence(
+      withTiming(0.35, { duration: durations.fast }),
+      withTiming(1, { duration: durations.slow }),
+    );
+  }, [fetchedAt, reduced, durations, captionPulse]);
+  const captionStyle = useAnimatedStyle(() => ({ opacity: captionPulse.value }));
+
   // Hero figure: counts up from 0 on first appearance, and from the old figure
   // to the new one when a refresh changes it. Always the backend's number.
   const heroValue = useCountUp(
@@ -234,11 +252,15 @@ export function BalancesScreen() {
         AVAILABLE CASH
       </AppText>
       <Money value={heroValue} variant="numXL" color={palette.signature} style={styles.heroGap} />
-      <AppText variant="caption" color={palette.textTertiary}>
-        {stale && fetchedAt != null ? `updated ${ago(fetchedAt, now)}` : data.summary.window}
-      </AppText>
+      <Animated.View style={captionStyle}>
+        <AppText variant="caption" color={palette.textTertiary}>
+          {stale && fetchedAt != null ? `updated ${ago(fetchedAt, now)}` : data.summary.window}
+        </AppText>
+      </Animated.View>
     </View>
   );
+
+  const fadeH = insets.top + gradients.headerFade.tail;
 
   return (
     <Background>
@@ -258,7 +280,9 @@ export function BalancesScreen() {
         )}
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingHorizontal: spacing.xl, ...contentPad }}
-        showsVerticalScrollIndicator={false}
+        bounces
+        indicatorStyle="white"
+        scrollIndicatorInsets={{ top: insets.top, bottom: spacing.sm }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -266,6 +290,13 @@ export function BalancesScreen() {
             tintColor={palette.textTertiary}
           />
         }
+      />
+      {/* Content dissolves under the status-bar zone instead of clipping. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={gradients.headerFade.colors}
+        locations={[0, insets.top / fadeH, 1]}
+        style={[styles.topFade, { height: fadeH }]}
       />
     </Background>
   );
@@ -330,6 +361,12 @@ const styles = StyleSheet.create({
   static: {
     flex: 1,
     paddingHorizontal: spacing.xl,
+  },
+  topFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   hero: {
     marginBottom: spacing.xl,

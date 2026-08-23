@@ -12,6 +12,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  interpolate,
+  interpolateColor,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -288,13 +290,26 @@ function Progress({ count, index }: { count: number; index: number }) {
   return (
     <View style={[styles.progress, { paddingTop: insets.top + spacing.md }]}>
       {Array.from({ length: count }).map((_, i) => (
-        <View
-          key={i}
-          style={[styles.dot, i === index ? styles.dotOn : styles.dotOff]}
-        />
+        <ProgressDot key={i} on={i === index} />
       ))}
     </View>
   );
+}
+
+// The active dot stretches and warms to apricot instead of snapping. The
+// neighbors animate in the same beat, so the row's total width barely moves.
+function ProgressDot({ on }: { on: boolean }) {
+  const { durations } = useMotion();
+  const amount = useSharedValue(on ? 1 : 0);
+  useEffect(() => {
+    amount.value = withTiming(on ? 1 : 0, { duration: durations.fast });
+  }, [on, durations, amount]);
+  const style = useAnimatedStyle(() => ({
+    width: interpolate(amount.value, [0, 1], [7, 22]),
+    opacity: interpolate(amount.value, [0, 1], [0.5, 1]),
+    backgroundColor: interpolateColor(amount.value, [0, 1], [palette.textTertiary, palette.signature]),
+  }));
+  return <Animated.View style={[styles.dot, style]} />;
 }
 
 function Footer({ isLast, onDone }: { isLast: boolean; onDone: () => void }) {
@@ -342,15 +357,6 @@ const styles = StyleSheet.create({
   dot: {
     height: 4,
     borderRadius: 2,
-  },
-  dotOn: {
-    width: 22,
-    backgroundColor: palette.signature,
-  },
-  dotOff: {
-    width: 7,
-    backgroundColor: palette.textTertiary,
-    opacity: 0.5,
   },
   footer: {
     paddingHorizontal: spacing.xl,

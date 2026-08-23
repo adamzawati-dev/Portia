@@ -59,6 +59,10 @@ export function ChatScreen() {
   const [showPill, setShowPill] = useState(false);
   const [caretOn, setCaretOn] = useState(true);
 
+  // History load failed: an empty thread with this set is an ERROR state, not
+  // "no history yet" — it renders an inline error line + Retry above the chips.
+  const [historyFailed, setHistoryFailed] = useState(false);
+
   const listRef = useRef<FlatList<Message>>(null);
   const nearBottom = useRef(true);
   const pendingRef = useRef<Pending | null>(null);
@@ -67,33 +71,47 @@ export function ChatScreen() {
   const canceled = useRef(false);
   const sentAt = useRef(0);
   const firstTokenSeen = useRef(false);
+  const alive = useRef(true);
+  const seedTries = useRef(0);
+
+  const loadHistory = useCallback(() => {
+    setHistoryFailed(false);
+    api
+      .getChatHistory()
+      .then((h) => {
+        if (!alive.current) return;
+        // The contract's page is newest-first; the thread renders oldest-first.
+        const ordered = [...h.messages].sort(
+          (a, b) => Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? ''),
+        );
+        setMessages(ordered);
+        // Just after the reveal, Portia's opening line may still be writing
+        // (POST /diagnostic/continue is fire-and-forget) -- an empty thread
+        // re-checks briefly so the seed is collected, not missed.
+        if (ordered.length === 0 && seedTries.current++ < 3) {
+          setTimeout(() => alive.current && loadHistory(), 1500);
+        }
+      })
+      .catch(() => {
+        if (!alive.current) return;
+        setMessages([]);
+        setHistoryFailed(true);
+      });
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    let tries = 0;
-    const load = () => {
-      api
-        .getChatHistory()
-        .then((h) => {
-          if (!active) return;
-          // The contract's page is newest-first; the thread renders oldest-first.
-          const ordered = [...h.messages].sort(
-            (a, b) => Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? ''),
-          );
-          setMessages(ordered);
-          // Just after the reveal, Portia's opening line may still be writing
-          // (POST /diagnostic/continue is fire-and-forget) -- an empty thread
-          // re-checks briefly so the seed is collected, not missed.
-          if (ordered.length === 0 && tries++ < 3) setTimeout(() => active && load(), 1500);
-        })
-        .catch(() => active && setMessages([]));
-    };
-    load();
+    alive.current = true;
+    loadHistory();
     return () => {
-      active = false;
+      alive.current = false;
       streamHandle.current?.cancel();
     };
-  }, []);
+  }, [loadHistory]);
+
+  const retryHistory = useCallback(() => {
+    setMessages(null); // back to the thread skeleton while the retry runs
+    loadHistory();
+  }, [loadHistory]);
 
   // Caret blink while streaming (steady under Reduce Motion).
   const streamingNow = pending?.phase === 'streaming';
@@ -232,6 +250,23 @@ export function ChatScreen() {
               <ChatSkeleton />
             ) : emptyThread ? (
               <View style={styles.emptyWrap}>
+                {historyFailed ? (
+                  <View style={styles.historyError}>
+                    <AppText variant="caption" color={palette.attention}>
+                      Couldn't load our conversation.
+                    </AppText>
+                    <Press
+                      onPress={retryHistory}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry loading the conversation"
+                    >
+                      <AppText variant="caption" color={palette.signature}>
+                        Retry
+                      </AppText>
+                    </Press>
+                  </View>
+                ) : null}
                 {SUGGESTED_PROMPTS.map((prompt) => (
                   <Press
                     key={prompt}
@@ -317,6 +352,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     gap: spacing.sm,
+  },
+  historyError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   chip: {
     backgroundColor: glass.tintFrom,

@@ -70,6 +70,8 @@ export const glass = {
   // dichroic refractive edge (subtle) — most visible on hero surfaces
   dichroic: ['#FF9EC0', '#FFB98A', '#FFD28A', '#FF9EC0'] as const,
   dichroicOpacity: 0.34,
+  // between-turn divider in long threads — barely-there rhythm
+  divider: 'rgba(255,215,210,0.08)',
   // solid fallback for devices without liquid glass (Android / iOS < 26)
   fallbackFill: 'rgba(58,19,38,0.72)',
 } as const;

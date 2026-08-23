@@ -13,7 +13,7 @@
 // first run, and a refresh failure with a cache on screen stays silent — the
 // staleness caption tells that story.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { InteractionManager, RefreshControl, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, {
   FadeInUp,
   useAnimatedStyle,
@@ -58,7 +58,7 @@ function ago(fetchedAt: number, now: number): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-export function BalancesScreen() {
+export function BalancesScreen({ onScrollTrend }: { onScrollTrend?: (down: boolean) => void }) {
   const insets = useSafeAreaInsets();
   const { reduced, durations, cardStagger } = useMotion();
 
@@ -109,11 +109,14 @@ export function BalancesScreen() {
   }, []);
 
   // Mount: hydrate from the Keychain if memory was empty (cold start), then
-  // refresh silently either way. Deferred past first paint (InteractionManager)
-  // so cold start reaches pixels before any network or Keychain work runs —
-  // the sync memory-cache read above already painted last-known figures.
+  // refresh silently either way. Deferred past first paint (idle callback —
+  // InteractionManager is deprecated in RN 0.85) so cold start reaches pixels
+  // before any network or Keychain work runs — the sync memory-cache read
+  // above already painted last-known figures.
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
       (async () => {
         if (!getAccountsCacheSync()) {
           const cached = await loadAccountsCache();
@@ -124,8 +127,14 @@ export function BalancesScreen() {
         }
         load(false);
       })();
-    });
-    return () => task.cancel();
+    };
+    const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    const handle = idle ? idle(run) : setTimeout(run, 50);
+    return () => {
+      cancelled = true;
+      if (!idle) clearTimeout(handle as ReturnType<typeof setTimeout>);
+    };
   }, [load]);
 
   const onRefresh = useCallback(() => {
@@ -133,6 +142,26 @@ export function BalancesScreen() {
     setRefreshing(true);
     load(true);
   }, [load]);
+
+  // Bar trend: scrolling into the ledger minimizes the bar; scrolling back
+  // toward the hero (or resting there) expands it.
+  const lastY = useRef(0);
+  const lastTrend = useRef(false);
+  const onListScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const y = e.nativeEvent.contentOffset.y;
+      const dy = y - lastY.current;
+      lastY.current = y;
+      let trend = lastTrend.current;
+      if (y < 60) trend = false;
+      else if (Math.abs(dy) > 8) trend = dy > 0;
+      if (trend !== lastTrend.current) {
+        lastTrend.current = trend;
+        onScrollTrend?.(trend);
+      }
+    },
+    [onScrollTrend],
+  );
 
   // Keeps the "updated x ago" caption honest while the screen sits open.
   const [now, setNow] = useState(() => Date.now());
@@ -296,6 +325,8 @@ export function BalancesScreen() {
         contentContainerStyle={{ paddingHorizontal: spacing.xl, ...contentPad }}
         bounces
         indicatorStyle="white"
+        onScroll={onListScroll}
+        scrollEventThrottle={32}
         scrollIndicatorInsets={{ top: insets.top, bottom: spacing.sm }}
         refreshControl={
           <RefreshControl

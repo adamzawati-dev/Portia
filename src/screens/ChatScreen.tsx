@@ -77,7 +77,7 @@ function insertAfterAnchor(prev: Message[] | null, anchorId: string, incoming: M
   return arr;
 }
 
-export function ChatScreen() {
+export function ChatScreen({ onScrollTrend }: { onScrollTrend?: (down: boolean) => void }) {
   const insets = useSafeAreaInsets();
   const { reduced, durations, cardStagger } = useMotion();
   const headerH = insets.top + TITLE_H;
@@ -246,11 +246,29 @@ export function ChatScreen() {
     [handleSend],
   );
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // Inverted: offset 0 IS the newest message.
-    nearBottom.current = e.nativeEvent.contentOffset.y < NEAR_BOTTOM_PX;
-    if (nearBottom.current) setShowPill(false);
-  }, []);
+  const lastY = useRef(0);
+  const lastTrend = useRef(false);
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      // Inverted: offset 0 IS the newest message.
+      const y = e.nativeEvent.contentOffset.y;
+      const dy = y - lastY.current;
+      lastY.current = y;
+      nearBottom.current = y < NEAR_BOTTOM_PX;
+      if (nearBottom.current) setShowPill(false);
+
+      // Bar trend: browsing history (offset growing) minimizes the bar;
+      // heading back toward the newest (or resting there) expands it.
+      let trend = lastTrend.current;
+      if (y < 60) trend = false;
+      else if (Math.abs(dy) > 8) trend = dy > 0;
+      if (trend !== lastTrend.current) {
+        lastTrend.current = trend;
+        onScrollTrend?.(trend);
+      }
+    },
+    [onScrollTrend],
+  );
 
   // Content grew while the reader was scrolled up: offer the pill, never yank.
   const onContentSizeChange = useCallback(() => {

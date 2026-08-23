@@ -1,24 +1,31 @@
 // src/components/MessageRow.tsx
 // Chat turns, arm's-length readable: numbers first, prose second.
 //
-// Assistant turns are full-width flat prose on the Dusk background — no
-// container. A 2px apricot rule marks each turn's top-left. When a reply
-// carries a dollar figure, the key one (backend flag when the contract grows
-// one; first amount until then) renders as an Overview-hero line: the amount
-// huge in apricot with its label beneath — the figure line leaves the prose so
-// nothing repeats. User turns are compact right-aligned chips on a subtle flat
-// tint, so the two voices are unmistakable at a glance. Never glass.
+// Assistant turns are full-width flat prose on the Dusk background. Each opens
+// with a 2px apricot rule that DRAWS in left-to-right, then the text fades up.
+// When a reply carries a dollar figure, the key one renders as an
+// Overview-hero line (count-up while live). Receipts — hairline uppercase
+// chips naming the true sources — stagger in under the finished reply, and a
+// barely-there divider closes each turn so long threads keep rhythm.
+// User turns are compact right-aligned chips on a subtle flat tint. Never glass.
 //
-// While Portia works, ThinkingSteps shows honest progress lines (institution
-// names come from the last-known accounts cache — real data, never invented)
-// that the answer replaces when the first token lands.
+// While Portia works, ThinkingSteps is one glass-edged strip: a pulsing
+// apricot dot, the current status line with an apricot shimmer sweeping the
+// text (MaskedView), previous lines exiting up. Institution names come from
+// the accounts cache — real data, never invented.
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
+  Easing,
+  FadeInUp,
+  FadeOutUp,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withRepeat,
   withTiming,
-  Easing,
 } from 'react-native-reanimated';
 import { glass, palette, radius, spacing } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
@@ -35,10 +42,8 @@ import { getAccountsCacheSync } from '../api/accountsCache';
 const amountValue = (amount: string) => Number(amount.replace(/[$,]/g, ''));
 
 // The hero figure. Live (streaming in): counts up over the slow duration with
-// a tick at start and a commit as it settles — the number arrives like an
-// object landing. Committed/history rows show it at rest, so the swap from
-// stream to committed never re-animates or double-fires haptics. Reduce
-// Motion: appears at its final value instantly (useCountUp disabled).
+// a tick at start and a commit as it settles. Committed/history rows show it
+// at rest, so the stream->commit swap never re-animates or double-fires.
 function HeroAmount({ amount, live }: { amount: string; live: boolean }) {
   const { reduced, durations } = useMotion();
   const target = amountValue(amount);
@@ -66,49 +71,79 @@ function HeroAmount({ amount, live }: { amount: string; live: boolean }) {
   );
 }
 
-// Receipts: flat chips naming where the figures come from. The contract's
-// replies carry no per-message source list yet, so this names the linked
-// institutions from the accounts cache — real names, only what's true. Tap is
-// acknowledged (light haptic); no action behind it yet.
+// Receipts: hairline uppercase chips naming where the figures come from. The
+// contract's replies carry no per-message source list yet, so this names the
+// linked institutions from the accounts cache — real names, only what's true.
 function Receipts() {
+  const { reduced, durations, cardStagger } = useMotion();
   const names = getAccountsCacheSync()?.data.institutions.map((i) => i.institutionName) ?? [];
   if (names.length === 0) return null;
   return (
     <View style={styles.receipts}>
-      {names.map((name) => (
-        <Press
+      {names.map((name, i) => (
+        <Animated.View
           key={name}
-          onPress={() => {}}
-          accessibilityRole="button"
-          accessibilityLabel={`Source: ${name}`}
-          style={styles.receipt}
+          entering={
+            reduced ? undefined : FadeInUp.duration(durations.fast).delay(i * cardStagger)
+          }
         >
-          <AppText variant="caption" color={palette.textTertiary}>
-            {name}
-          </AppText>
-        </Press>
+          <Press
+            onPress={() => {}}
+            accessibilityRole="button"
+            accessibilityLabel={`Source: ${name}`}
+            style={styles.receipt}
+          >
+            <AppText variant="overline" color={palette.textTertiary}>
+              {name.toUpperCase()}
+            </AppText>
+          </Press>
+        </Animated.View>
       ))}
     </View>
   );
 }
 
 function AssistantTurn({ text, live = false }: { text: string; live?: boolean }) {
+  const { reduced, durations } = useMotion();
   const hero = extractHero(text);
+
+  // Entrance (live turns only): the rule draws left-to-right, then the body
+  // fades up 4px. Committed/history rows render at rest.
+  const animate = live && !reduced;
+  const ruleIn = useSharedValue(animate ? 0 : 1);
+  const bodyIn = useSharedValue(animate ? 0 : 1);
+  useEffect(() => {
+    if (!animate) return;
+    ruleIn.value = withTiming(1, { duration: durations.fast, easing: Easing.out(Easing.quad) });
+    bodyIn.value = withDelay(durations.fast, withTiming(1, { duration: durations.fast }));
+    // Entrance runs once per mounted turn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const ruleStyle = useAnimatedStyle(() => ({ width: 22 * ruleIn.value }));
+  const bodyStyle = useAnimatedStyle(() => ({
+    opacity: bodyIn.value,
+    transform: [{ translateY: (1 - bodyIn.value) * 4 }],
+  }));
+
   return (
     <View style={styles.assistant}>
-      <View style={styles.rule} />
-      {hero ? (
-        <View style={styles.hero}>
-          <HeroAmount amount={hero.amount} live={live} />
-          {hero.label ? (
-            <AppText variant="overline" color={palette.textTertiary} style={styles.heroLabel}>
-              {hero.label.toUpperCase()}
-            </AppText>
-          ) : null}
-        </View>
-      ) : null}
-      <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
-      {live ? null : <Receipts />}
+      <Animated.View style={[styles.rule, ruleStyle]} />
+      <Animated.View style={bodyStyle}>
+        {hero ? (
+          <View style={styles.hero}>
+            <HeroAmount amount={hero.amount} live={live} />
+            {hero.label ? (
+              <AppText variant="overline" color={palette.textTertiary} style={styles.heroLabel}>
+                {hero.label.toUpperCase()}
+              </AppText>
+            ) : null}
+          </View>
+        ) : null}
+        <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
+        {live ? null : <Receipts />}
+      </Animated.View>
+      {/* Turn divider: barely-there rhythm for long threads. */}
+      {live ? null : <View style={styles.turnDivider} />}
     </View>
   );
 }
@@ -152,12 +187,13 @@ export function StreamingRow({ text, caretOn }: { text: string; caretOn: boolean
 }
 
 // ---------------------------------------------------------------------------
-// Thinking state: status lines appear one by one and hold until the answer
-// lands. Institution names are read from the accounts cache (real backend
-// data); everything else stays generic and honest.
+// Thinking strip: one glass-edged capsule — pulsing apricot dot, current
+// status line with a shimmer sweeping the text, previous lines exiting up.
 // ---------------------------------------------------------------------------
 
-const STEP_MS = 900;
+const STEP_MS = 1400;
+const SHIMMER_MS = 1800;
+const SHIMMER_SWEEP_W = 300;
 
 function buildSteps(): string[] {
   const institutions =
@@ -170,39 +206,97 @@ function buildSteps(): string[] {
 }
 
 export function ThinkingSteps() {
+  const { reduced, durations } = useMotion();
   const [steps] = useState(buildSteps);
-  const [shown, setShown] = useState(1);
+  const [idx, setIdx] = useState(0);
   useEffect(() => {
-    if (shown >= steps.length) return;
-    const t = setTimeout(() => setShown((s) => s + 1), STEP_MS);
+    if (idx >= steps.length - 1) return;
+    const t = setTimeout(() => setIdx((i) => i + 1), STEP_MS);
     return () => clearTimeout(t);
-  }, [shown, steps.length]);
+  }, [idx, steps.length]);
+
   return (
     <View style={styles.assistant} accessibilityLabel="Portia is working">
-      <View style={styles.rule} />
-      {steps.slice(0, shown).map((step, i) => (
-        <ThinkingLine key={step} text={step} dimmed={i < shown - 1} />
-      ))}
+      <View style={styles.thinkStrip}>
+        <PulsingDot />
+        <View style={styles.thinkSlot}>
+          <Animated.View
+            key={idx}
+            entering={reduced ? undefined : FadeInUp.duration(durations.fast)}
+            exiting={reduced ? undefined : FadeOutUp.duration(durations.fast)}
+          >
+            <ShimmerText text={steps[idx]} />
+          </Animated.View>
+        </View>
+      </View>
     </View>
   );
 }
 
-function ThinkingLine({ text, dimmed }: { text: string; dimmed: boolean }) {
+function PulsingDot() {
   const { reduced, durations } = useMotion();
-  const enter = useSharedValue(reduced ? 1 : 0);
+  const pulse = useSharedValue(1);
   useEffect(() => {
-    enter.value = withTiming(1, { duration: durations.base, easing: Easing.out(Easing.quad) });
-  }, [enter, durations]);
-  const style = useAnimatedStyle(() => ({
-    opacity: enter.value * (dimmed ? 0.55 : 1),
-    transform: [{ translateY: (1 - enter.value) * 6 }],
+    if (reduced) return;
+    pulse.value = withRepeat(
+      withTiming(0.35, { duration: durations.slow, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+  }, [reduced, durations, pulse]);
+  const breathing = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+    transform: [{ scale: 0.85 + pulse.value * 0.15 }],
   }));
-  return (
-    <Animated.View style={[styles.thinkingLine, style]}>
+  return <Animated.View style={[styles.dot, breathing]} />;
+}
+
+/** The status line with a soft apricot band sweeping through the glyphs. */
+function ShimmerText({ text }: { text: string }) {
+  const { reduced } = useMotion();
+  const sweep = useSharedValue(-1);
+  useEffect(() => {
+    if (reduced) return;
+    sweep.value = -1;
+    sweep.value = withRepeat(
+      withTiming(1, { duration: SHIMMER_MS, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      false,
+    );
+  }, [reduced, sweep, text]);
+  const sweepStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: sweep.value * SHIMMER_SWEEP_W }],
+  }));
+
+  if (reduced) {
+    return (
       <AppText variant="caption" color={palette.textSecondary}>
         {text}
       </AppText>
-    </Animated.View>
+    );
+  }
+  return (
+    <MaskedView
+      maskElement={
+        <AppText variant="caption" color="#000">
+          {text}
+        </AppText>
+      }
+    >
+      {/* Invisible twin sizes the mask; layers below show through the glyphs. */}
+      <AppText variant="caption" style={styles.sizer}>
+        {text}
+      </AppText>
+      <View style={[StyleSheet.absoluteFill, styles.shimmerBase]} />
+      <Animated.View style={[StyleSheet.absoluteFill, sweepStyle]}>
+        <LinearGradient
+          colors={['transparent', palette.signatureGlow, 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.shimmerBand}
+        />
+      </Animated.View>
+    </MaskedView>
   );
 }
 
@@ -211,7 +305,6 @@ const styles = StyleSheet.create({
     marginVertical: spacing.lg,
   },
   rule: {
-    width: 22,
     height: 2,
     borderRadius: 1,
     backgroundColor: palette.signature,
@@ -236,9 +329,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  thinkingLine: {
-    marginBottom: spacing.xs,
-  },
   receipts: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -246,9 +336,47 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   receipt: {
-    backgroundColor: glass.tintFrom,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.border,
     borderRadius: radius.chip,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
+  },
+  turnDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: glass.divider,
+    marginTop: spacing.lg,
+  },
+  thinkStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'flex-start',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.border,
+    backgroundColor: glass.tintTo,
+    borderRadius: radius.chip,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  thinkSlot: {
+    minHeight: 16,
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.signature,
+  },
+  sizer: {
+    opacity: 0,
+  },
+  shimmerBase: {
+    backgroundColor: palette.textSecondary,
+  },
+  shimmerBand: {
+    width: 140,
+    height: '100%',
   },
 });

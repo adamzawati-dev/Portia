@@ -14,9 +14,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
-import { gradients, palette, radius, spacing, type as typeTokens } from '../../theme/dusk';
+import { palette, radius, spacing, type as typeTokens } from '../../theme/dusk';
 import { fontFamilyForWeight } from '../../theme/fonts';
 import { Glass } from './Glass';
 import { AppText } from './AppText';
@@ -84,8 +83,6 @@ export function Composer({
             onBlur={() => {
               ring.value = withTiming(0, { duration: durations.fast });
             }}
-            placeholder="Ask Portia"
-            placeholderTextColor={palette.textTertiary}
             multiline
             keyboardAppearance="dark"
             selectionColor={palette.signature}
@@ -93,6 +90,15 @@ export function Composer({
             blurOnSubmit
             onSubmitEditing={submit}
           />
+          {text.length === 0 ? (
+            /* Placeholder at the light weight — TextInput can't style its own
+               placeholder's family, so this overlay is the placeholder. */
+            <View pointerEvents="none" style={styles.placeholder}>
+              <AppText variant="body" color={palette.textTertiary} style={styles.placeholderText}>
+                Ask Portia
+              </AppText>
+            </View>
+          ) : null}
         </Glass.Chrome>
         <Animated.View pointerEvents="none" style={[styles.ring, ringStyle]} />
       </Press>
@@ -105,12 +111,6 @@ export function Composer({
             accessibilityLabel="Stop generating"
             style={styles.send}
           >
-            <LinearGradient
-              colors={gradients.cta.colors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
             <SymbolView name="stop.fill" size={16} tintColor={palette.onSignature} weight="semibold" />
           </Press>
         ) : (
@@ -121,15 +121,7 @@ export function Composer({
             accessibilityLabel="Send message"
             style={styles.send}
           >
-            <LinearGradient
-              colors={gradients.cta.colors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <AppText variant="title" color={palette.onSignature}>
-              ↑
-            </AppText>
+            <SymbolView name="arrow.up" size={18} tintColor={palette.onSignature} weight="bold" />
           </Press>
         )}
       </Animated.View>
@@ -143,7 +135,7 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl, // the gutter both tabs' content sits on
     paddingTop: spacing.sm,
     gap: spacing.sm,
   },
@@ -179,8 +171,20 @@ const styles = StyleSheet.create({
     width: SEND_SIZE,
     height: SEND_SIZE,
     borderRadius: SEND_SIZE / 2,
-    overflow: 'hidden',
+    // Solid apricot: the single most saturated element on screen.
+    backgroundColor: palette.signature,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  placeholder: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontFamily: fontFamilyForWeight('300'),
   },
 });

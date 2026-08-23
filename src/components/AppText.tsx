@@ -47,6 +47,9 @@ export function AppText({
   return (
     <Text
       style={[base, tabular ? { fontVariant: NUMERIC_VARIANT } : null, style]}
+      // Dynamic Type scales the whole ramp, capped where the fixed-height rows
+      // and hero figures stop surviving. Callers can lower it, not raise it.
+      maxFontSizeMultiplier={1.4}
       {...rest}
     />
   );

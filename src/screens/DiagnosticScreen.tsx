@@ -9,13 +9,15 @@
 // animates toward the real value; nothing here is invented. All motion is
 // Reanimated on the UI thread; Reduce Motion collapses it to instant, static
 // cards (immediate springs + zero stagger via useMotion).
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, spacing } from '../../theme/dusk';
@@ -111,19 +113,40 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
     if (ready) haptic.commit();
   }, [ready]);
 
+  // Card-to-card: the old card fades out fast, then the next mounts and runs
+  // its own staggered entrance — no hard cut. Instant under Reduce Motion.
+  const cardAlpha = useSharedValue(1);
+  const advanceTo = useCallback(
+    (next: number) => {
+      if (motion.reduced) {
+        setIndex(next);
+        return;
+      }
+      cardAlpha.value = withTiming(0, { duration: motion.durations.instant }, (finished) => {
+        'worklet';
+        if (finished) runOnJS(setIndex)(next);
+      });
+    },
+    [motion, cardAlpha],
+  );
+  useEffect(() => {
+    cardAlpha.value = 1; // the new card's children start hidden; snap the shell back
+  }, [index, cardAlpha]);
+  const cardShell = useAnimatedStyle(() => ({ opacity: cardAlpha.value, flex: 1 }));
+
   // Auto-advance, except on the last card (which waits on the CTA).
   useEffect(() => {
     if (!ready || isLast) return;
     const t = setTimeout(() => {
       haptic.commit();
-      setIndex((i) => i + 1);
+      advanceTo(index + 1);
     }, AUTO_MS);
     return () => clearTimeout(t);
-  }, [ready, index, isLast]);
+  }, [ready, index, isLast, advanceTo]);
 
   const advance = () => {
     if (!ready) return;
-    setIndex((i) => Math.min(i + 1, segments.length - 1));
+    advanceTo(Math.min(index + 1, segments.length - 1));
   };
 
   const finish = () => {
@@ -178,7 +201,9 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
       >
         <View style={styles.flex}>
           <Progress count={segments.length} index={index} />
-          <DiagnosticCard key={segment.id} segment={segment} motion={motion} />
+          <Animated.View style={cardShell}>
+            <DiagnosticCard key={segment.id} segment={segment} motion={motion} />
+          </Animated.View>
           <Footer isLast={isLast} onDone={finish} />
         </View>
       </Press>

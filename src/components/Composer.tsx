@@ -40,6 +40,7 @@ export function Composer({
       <Glass.Chrome radius={radius.card} style={styles.field}>
         <TextInput
           style={styles.input}
+          maxFontSizeMultiplier={1.4}
           value={text}
           onChangeText={setText}
           placeholder="Ask Portia"

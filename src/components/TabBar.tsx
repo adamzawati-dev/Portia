@@ -1,8 +1,9 @@
 // src/components/TabBar.tsx
-// The app's two top-level surfaces, as a floating liquid-glass bar — chrome, so
-// it's the one place glass belongs. Two tabs only (Chat / Overview); MainTabs
-// holds the active key. Active tab is apricot (signature), inactive is tertiary.
-// Each tab is a <Press> (light haptic + UI-thread dip).
+// The app's two top-level surfaces, as an inset floating glass capsule — chrome,
+// so it's the one place glass belongs. Two tabs only (Chat / Overview); MainTabs
+// holds the active key and crossfades the content. Active tab is apricot
+// (signature), inactive is tertiary. Each tab is a <Press> (light haptic +
+// UI-thread dip).
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +25,7 @@ export function TabBar({ active, onChange }: { active: TabKey; onChange: (key: T
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.wrap, { paddingBottom: insets.bottom || spacing.md }]}>
-      <Glass.Chrome radius={radius.card} style={styles.bar}>
+      <Glass.Chrome radius={radius.chip} style={styles.bar}>
         {TABS.map((t) => {
           const on = t.key === active;
           const color = on ? palette.signature : palette.textTertiary;

@@ -13,7 +13,7 @@
 // first run, and a refresh failure with a cache on screen stays silent — the
 // staleness caption tells that story.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshControl, StyleSheet, View } from 'react-native';
+import { InteractionManager, RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -100,18 +100,23 @@ export function BalancesScreen() {
   }, []);
 
   // Mount: hydrate from the Keychain if memory was empty (cold start), then
-  // refresh silently either way.
+  // refresh silently either way. Deferred past first paint (InteractionManager)
+  // so cold start reaches pixels before any network or Keychain work runs —
+  // the sync memory-cache read above already painted last-known figures.
   useEffect(() => {
-    (async () => {
-      if (!getAccountsCacheSync()) {
-        const cached = await loadAccountsCache();
-        if (alive.current && cached && !networkLanded.current) {
-          setData(cached.data);
-          setFetchedAt(cached.fetchedAt);
+    const task = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        if (!getAccountsCacheSync()) {
+          const cached = await loadAccountsCache();
+          if (alive.current && cached && !networkLanded.current) {
+            setData(cached.data);
+            setFetchedAt(cached.fetchedAt);
+          }
         }
-      }
-      load(false);
-    })();
+        load(false);
+      })();
+    });
+    return () => task.cancel();
   }, [load]);
 
   const onRefresh = useCallback(() => {

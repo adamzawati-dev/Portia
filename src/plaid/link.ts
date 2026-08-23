@@ -4,9 +4,13 @@
 // sheet, then hand the resulting public token back to the backend to exchange +
 // encrypt + bind to this user (see /plaid/link-token and /plaid/exchange in
 // docs/api-contract.md). Credentials never touch us — Plaid holds them.
-import { create, open, LinkSuccess, LinkExit } from 'react-native-plaid-link-sdk';
+import type { LinkSuccess, LinkExit } from 'react-native-plaid-link-sdk';
 import { api, ExchangeResult } from '../api/client';
 import { USE_MOCK } from '../api/config';
+
+// Deferred require: the Plaid SDK's JS only loads when a link actually starts,
+// keeping it off the cold-start path (type imports above are erased at build).
+const plaid = () => require('react-native-plaid-link-sdk') as typeof import('react-native-plaid-link-sdk');
 
 /** Thrown when the user backs out of the Plaid sheet — callers treat as a no-op. */
 export class PlaidCanceled extends Error {
@@ -34,9 +38,9 @@ export async function connectBank(onSyncing?: () => void): Promise<ExchangeResul
     });
   }
 
-  create({ token: linkToken });
+  plaid().create({ token: linkToken });
   return new Promise<ExchangeResult>((resolve, reject) => {
-    open({
+    plaid().open({
       onSuccess: (success: LinkSuccess) => {
         onSyncing?.();
         const inst = success.metadata.institution;

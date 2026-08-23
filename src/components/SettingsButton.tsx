@@ -1,56 +1,20 @@
 // src/components/SettingsButton.tsx
 // The signed-in app's account affordance: a small glass gear (floating chrome),
-// top-right, opening a native action sheet (Alert) — two settings don't earn a
-// full surface yet. Holds: adding another bank (the engine folds it in as its
-// history loads; duplicates are detected server-side) and sign out.
+// top-right. It only opens the SettingsSheet (see SettingsSheet.tsx) — MainTabs
+// owns the sheet so it can float over both tabs.
 import React from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { palette, radius, spacing } from '../../theme/dusk';
 import { Glass } from './Glass';
 import { Press } from './Press';
-import { useSession } from '../auth/session';
-import { connectBank, PlaidCanceled } from '../plaid/link';
 
-export function SettingsButton() {
+export function SettingsButton({ onPress }: { onPress: () => void }) {
   const insets = useSafeAreaInsets();
-  const { signOut } = useSession();
-
-  const addAccount = async () => {
-    try {
-      const result = await connectBank();
-      if (result.duplicate) {
-        Alert.alert('Already connected', 'That bank was already linked — nothing changed.');
-        return;
-      }
-      const name = result.linked[0]?.institutionName ?? 'That account';
-      Alert.alert('Connected', `${name} is linked — I’ll fold it in as the history loads.`);
-    } catch (e) {
-      if (e instanceof PlaidCanceled) return;
-      Alert.alert('Couldn’t connect', 'That bank didn’t link. Try again.');
-    }
-  };
-
-  const openSettings = () => {
-    Alert.alert('Settings', undefined, [
-      { text: 'Add a bank account', onPress: () => void addAccount() },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Sign out?', 'You’ll need Sign in with Apple to get back in.', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
-          ]),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
   return (
     <Press
-      onPress={openSettings}
+      onPress={onPress}
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel="Settings and sign out"

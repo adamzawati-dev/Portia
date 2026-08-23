@@ -52,7 +52,10 @@ export const gradients = {
   // tail — pure alpha, so it's exact over blooms and grain alike.
   headerFade: {
     mask: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)', '#000'] as const,
-    tail: 40, // px of dissolve below the header content
+    tail: 56, // px of dissolve below the header content
+    // soft scrim behind the fixed title — envTop settling to nothing, so the
+    // title always has enough ground even over bright content.
+    scrim: ['rgba(44,14,44,0.92)', 'rgba(44,14,44,0)'] as const,
   },
 } as const;
 

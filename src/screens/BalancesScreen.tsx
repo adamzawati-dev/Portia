@@ -313,16 +313,17 @@ export function BalancesScreen() {
         AVAILABLE CASH
       </AppText>
       <Money value={heroValue} variant="numXL" color={palette.signature} style={styles.heroGap} />
-      {shaped.cashCount > 0 ? (
-        <AppText variant="caption" color={palette.textSecondary}>
-          {`Across ${shaped.cashCount} cash account${shaped.cashCount === 1 ? '' : 's'}${
-            shaped.hasCredit ? ' · excludes credit' : ''
-          }`}
-        </AppText>
-      ) : null}
       <Animated.View style={captionStyle}>
-        <AppText variant="micro" color={palette.textTertiary} style={styles.timestamp}>
-          {stale && fetchedAt != null ? `updated ${ago(fetchedAt, now)}` : data.summary.window}
+        <AppText variant="caption" color={palette.textSecondary}>
+          {[
+            shaped.cashCount > 0
+              ? `Across ${shaped.cashCount} cash account${shaped.cashCount === 1 ? '' : 's'}`
+              : null,
+            shaped.hasCredit ? 'Credit excluded' : null,
+            stale && fetchedAt != null ? `Updated ${ago(fetchedAt, now)}` : data.summary.window,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </AppText>
       </Animated.View>
     </View>
@@ -427,12 +428,9 @@ function AccountRow({
         </View>
         {isCredit && account.projected != null ? (
           <View style={styles.projected}>
-            <AppText variant="micro" color={palette.textTertiary}>
-              {'→'}
-            </AppText>
             <Money value={account.projected} variant="numSM" color={palette.textTertiary} />
             <AppText variant="micro" color={palette.textTertiary}>
-              once pending clears
+              projected after pending
             </AppText>
           </View>
         ) : null}
@@ -472,9 +470,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
   },
-  timestamp: {
-    marginTop: spacing.xs,
-  },
   tryAgain: {
     alignSelf: 'flex-start',
     paddingVertical: spacing.sm,
@@ -494,14 +489,14 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   section: {
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.sm,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
   },
   rowDivider: {
     borderBottomWidth: StyleSheet.hairlineWidth,

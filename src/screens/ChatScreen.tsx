@@ -408,8 +408,10 @@ export function ChatScreen() {
         {/* Grows with the keyboard, frame-by-frame on the UI thread. */}
         <Animated.View style={kbSpacer} />
 
-        {/* Fixed header: just the title — the mask below does the dissolve. */}
-        <View pointerEvents="none" style={styles.headerOverlay}>
+        {/* Fixed header: soft env scrim under the title + the alpha mask on the
+            thread — content dissolves well before it can touch the wordmark. */}
+        <View pointerEvents="none" style={[styles.headerOverlay, { height: headerH + spacing.xxl }]}>
+          <LinearGradient colors={gradients.headerFade.scrim} style={StyleSheet.absoluteFill} />
           <View style={[styles.header, { paddingTop: insets.top }]}>
             <AppText variant="title" color={palette.textPrimary}>
               Portia

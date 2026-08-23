@@ -71,35 +71,22 @@ function HeroAmount({ amount, live }: { amount: string; live: boolean }) {
   );
 }
 
-// Receipts: hairline uppercase chips naming where the figures come from. The
+// Provenance: one quiet line naming where the figures come from — no pills,
+// no borders, just muted metadata ("American Express · Wells Fargo"). The
 // contract's replies carry no per-message source list yet, so this names the
 // linked institutions from the accounts cache — real names, only what's true.
-function Receipts() {
-  const { reduced, durations, cardStagger } = useMotion();
+function Provenance() {
   const names = getAccountsCacheSync()?.data.institutions.map((i) => i.institutionName) ?? [];
   if (names.length === 0) return null;
   return (
-    <View style={styles.receipts}>
-      {names.map((name, i) => (
-        <Animated.View
-          key={name}
-          entering={
-            reduced ? undefined : FadeInUp.duration(durations.fast).delay(i * cardStagger)
-          }
-        >
-          <Press
-            onPress={() => {}}
-            accessibilityRole="button"
-            accessibilityLabel={`Source: ${name}`}
-            style={styles.receipt}
-          >
-            <AppText variant="overline" color={palette.textTertiary}>
-              {name.toUpperCase()}
-            </AppText>
-          </Press>
-        </Animated.View>
-      ))}
-    </View>
+    <AppText
+      variant="micro"
+      color={palette.textTertiary}
+      style={styles.provenance}
+      accessibilityLabel={`Sources: ${names.join(', ')}`}
+    >
+      {names.join(' · ')}
+    </AppText>
   );
 }
 
@@ -140,7 +127,7 @@ function AssistantTurn({ text, live = false }: { text: string; live?: boolean })
           </View>
         ) : null}
         <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
-        {live ? null : <Receipts />}
+        {live ? null : <Provenance />}
       </Animated.View>
       {/* Turn divider: barely-there rhythm for long threads. */}
       {live ? null : <View style={styles.turnDivider} />}
@@ -329,18 +316,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  receipts: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+  provenance: {
     marginTop: spacing.md,
-  },
-  receipt: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: glass.border,
-    borderRadius: radius.chip,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
   },
   turnDivider: {
     height: StyleSheet.hairlineWidth,

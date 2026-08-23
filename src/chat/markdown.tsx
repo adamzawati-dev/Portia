@@ -31,40 +31,45 @@ export function stabilize(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Hero figure: the single most important amount in a reply. The contract has
-// no flag for it yet, so the FIRST amount is the stand-in (per design spec).
-// If its line is short — a figure line like "$2,558 net loss" — the whole line
-// is lifted: amount huge, the rest as its label, and the line leaves the prose.
+// Financial callout: "this is the number that matters." The contract has no
+// flag yet, so the rule is structural and DELIBERATELY strict:
+//   - the line is short and LEADS with the amount ("$2,558 net loss"),
+//   - it is not a list item (breakdowns never become KPIs),
+//   - and it is the ONLY such line in the reply — two or more figure lines
+//     mean the reply is a breakdown, and nothing gets the callout.
+// Amounts embedded mid-sentence never promote. When the backend grows a
+// highlight flag, it replaces this heuristic.
 // ---------------------------------------------------------------------------
 
 export type HeroFigure = {
   /** Verbatim backend text, e.g. "$2,558" — parsed only to render, never math. */
   amount: string;
-  /** Words sharing the lifted line ("net loss"), or null if amount was mid-sentence. */
+  /** Words sharing the lifted line ("net loss"), or null for a bare figure. */
   label: string | null;
-  /** The exact line to remove from prose when the whole line was lifted. */
-  liftedLine: string | null;
+  /** The exact raw line to remove from prose (it renders as the callout). */
+  liftedLine: string;
 };
 
 const SHORT_LINE = 48;
+const LIST_MARKER = /^\s*([-*•→]|\d+[.)])\s+/;
 
 export function extractHero(text: string): HeroFigure | null {
+  const candidates: HeroFigure[] = [];
   for (const line of text.split('\n')) {
-    const m = line.match(AMOUNT);
-    if (!m) continue;
+    if (LIST_MARKER.test(line)) continue; // list items never hero
     // Strip markdown markers AND the streaming caret — it rides the live text
     // and must never leak into a lifted label.
     const cleaned = line.replace(/[*#`_▍]/g, '').trim();
-    if (cleaned.length <= SHORT_LINE) {
-      const label = cleaned
-        .replace(m[0], '')
-        .replace(/^[\s\-–—:,.]+|[\s\-–—:,.]+$/g, '')
-        .trim();
-      return { amount: m[0], label: label || null, liftedLine: line };
-    }
-    return { amount: m[0], label: null, liftedLine: null };
+    if (cleaned.length === 0 || cleaned.length > SHORT_LINE) continue;
+    const m = cleaned.match(AMOUNT);
+    if (!m || !cleaned.startsWith(m[0])) continue; // callouts lead with the figure
+    const label = cleaned
+      .slice(m[0].length)
+      .replace(/^[\s\-–—:,.]+|[\s\-–—:,.]+$/g, '')
+      .trim();
+    candidates.push({ amount: m[0], label: label || null, liftedLine: line });
   }
-  return null;
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 // ---------------------------------------------------------------------------

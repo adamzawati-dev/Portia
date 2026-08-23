@@ -111,6 +111,7 @@ export const type = {
     body:     { size: 15, weight: '400', letterSpacing: 0,    lineHeight: 23 },
     caption:  { size: 12, weight: '500', letterSpacing: 0.4,  lineHeight: 16 },
     overline: { size: 11, weight: '600', letterSpacing: 1.3,  lineHeight: 14 }, // UPPERCASE labels
+    micro:    { size: 11, weight: '500', letterSpacing: 0.2,  lineHeight: 14 }, // row metadata / qualifier states
     // number treatments — always pair with numericVariant
     numHero:  { size: 68, weight: '700', letterSpacing: -2.4, lineHeight: 70 }, // diagnostic full-screen figure
     numXL:    { size: 47, weight: '600', letterSpacing: -1.4, lineHeight: 47 }, // hero balance

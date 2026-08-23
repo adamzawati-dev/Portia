@@ -57,6 +57,9 @@ export type Institution = {
 export type AccountsSummary = {
   cashAvailable: number;
   window: string;
+  /** PROPOSED contract addition (not yet served): one Portia-voiced sentence
+   *  for the Overview's intelligence line. Rendered only when present. */
+  insight?: string;
 };
 
 export type AccountsOverview = {

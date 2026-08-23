@@ -1,10 +1,11 @@
 // src/components/TabBar.tsx
 // Navigation that recedes to almost nothing: no capsule, no card, no glass —
 // two quiet labels floating over the Dusk gradient. Active = apricot icon +
-// label + a tiny dot; inactive = tertiary warm-white. States crossfade in
+// label; inactive = tertiary warm-white. States crossfade in
 // place (stacked layers, fast duration) with the shared Press (44pt+ targets,
-// light haptic). Hierarchy at the bottom of the screen comes from spacing,
-// opacity, and the apricot accent — never from outlines.
+// light haptic). Color alone carries the active state — no dot, no underline.
+// Hierarchy at the bottom of the screen comes from spacing, opacity, and the
+// apricot accent — never from outlines.
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -88,20 +89,16 @@ function TabItem({
       accessibilityLabel={tab.label}
     >
       <Animated.View style={[styles.layer, inactiveLayer]}>
-        <SymbolView name={tab.icon} size={18} tintColor={inactiveColor} weight="regular" />
+        <SymbolView name={tab.icon} size={16} tintColor={inactiveColor} weight="regular" />
         <AppText variant="caption" color={inactiveColor}>
           {tab.label}
         </AppText>
-        <View style={styles.dotSlot} />
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.layer, activeLayer]}>
-        <SymbolView name={tab.icon} size={18} tintColor={palette.signature} weight="semibold" />
+        <SymbolView name={tab.icon} size={16} tintColor={palette.signature} weight="semibold" />
         <AppText variant="caption" color={palette.signature}>
           {tab.label}
         </AppText>
-        <View style={styles.dotSlot}>
-          <View style={styles.dot} />
-        </View>
       </Animated.View>
     </Press>
   );
@@ -123,15 +120,5 @@ const styles = StyleSheet.create({
   layer: {
     alignItems: 'center',
     gap: 3,
-  },
-  dotSlot: {
-    height: 6,
-    justifyContent: 'center',
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: palette.signature,
   },
 });

@@ -13,8 +13,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { glass, innerRadius, radius, spacing } from '../../theme/dusk';
-import { Surface } from './Surface';
+import { glass, radius, spacing } from '../../theme/dusk';
 import { useMotion } from '../hooks/useMotion';
 
 export type SkeletonProps = {
@@ -59,30 +58,29 @@ export function Skeleton({ width, height, round = 8, style }: SkeletonProps) {
 // surface shells) so the swap to live content is a fade-in-place, not a reflow.
 // ---------------------------------------------------------------------------
 
-/** Mirrors BalancesScreen: hero figure block, then two institution cards. */
+/** Mirrors the Overview brief: hero block, then flat sectioned rows — no cards. */
 export function OverviewSkeleton() {
-  const cardPad = spacing.lg;
-  const rowRound = innerRadius(radius.card, cardPad);
   return (
     <View>
       <View style={styles.hero}>
         <Skeleton width={110} height={11} />
         <Skeleton width={230} height={47} round={12} style={styles.heroFigure} />
-        <Skeleton width={130} height={12} />
+        <Skeleton width={190} height={12} />
+        <Skeleton width={90} height={11} />
       </View>
-      {[2, 1].map((rows, i) => (
-        <Surface key={i} style={[styles.card, { padding: cardPad }]}>
-          <Skeleton width={120} height={20} round={rowRound} style={styles.cardTitle} />
+      {[2, 1].map((rows, section) => (
+        <View key={section}>
+          <Skeleton width={52} height={11} style={styles.sectionBar} />
           {Array.from({ length: rows }).map((_, r) => (
             <View key={r} style={styles.acctRow}>
               <View style={styles.acctLeft}>
                 <Skeleton width={150} height={15} />
-                <Skeleton width={64} height={12} />
+                <Skeleton width={120} height={11} />
               </View>
               <Skeleton width={84} height={18} />
             </View>
           ))}
-        </Surface>
+        </View>
       ))}
     </View>
   );
@@ -117,17 +115,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
-  card: {
-    marginTop: spacing.md,
-  },
-  cardTitle: {
+  sectionBar: {
+    marginTop: spacing.xxl,
     marginBottom: spacing.md,
   },
   acctRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.lg,
   },
   acctLeft: {
     gap: 6,

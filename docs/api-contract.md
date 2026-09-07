@@ -115,6 +115,26 @@ Send a message to Portia; receive her reply (possibly several messages).
   carry in `/chat/history`), so an optimistic bubble can be reconciled by id. Absent
   only if persistence of the turn itself failed.
 
+#### Streaming variant (same path)
+Send the same request with `Accept: text/event-stream` to receive SSE instead of
+JSON. Event order per turn:
+```
+event: step    data: { label: string }   // 0..n, one per tool as it starts —
+                                         // real progress ("Checking balances",
+                                         // "Scanning transactions"), render verbatim
+event: chunk   data: { text: string }    // 1..n, concatenate in order for the reply
+event: done    data: { message: ChatMessage, userMessageId?: string }
+event: error   data: { code, message }   // terminal, replaces chunk/done
+```
+- Today the whole reply arrives as ONE `chunk`; the contract requires clients to
+  concatenate chunks so token-level streaming can land later without a change.
+- The reply is intentionally not streamed token-by-token from the model: the
+  server audits the complete draft for number/merchant grounding before anything
+  is delivered.
+- Validation failures (empty/too-long message) return the normal JSON 4xx error
+  envelope before any stream opens.
+- The non-streaming JSON response remains unchanged and is the fallback contract.
+
 ### `GET /chat/history?cursor=<opaque>`
 Prior conversation, newest page first; omit `cursor` for the latest page.
 - **200** `{ messages: ChatMessage[], nextCursor?: string }`

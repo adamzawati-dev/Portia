@@ -16,11 +16,13 @@
 // is off. No secrets live in the client: the client ID is a public OAuth
 // identifier. Never log tokens.
 import React, { useEffect } from 'react';
-import { StyleSheet } from 'react-native';
-import { palette, radius, spacing } from '../../theme/dusk';
-import { AppText } from './../components/AppText';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { radius, spacing } from '../../theme/dusk';
 import { Press } from './../components/Press';
 import { supabase } from './supabase';
+
+// Google's official "G" (developers.google.com/identity branding asset).
+const gLogo = require('../../assets/google-g.png');
 
 export const GOOGLE_ENABLED = !!process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
@@ -70,16 +72,23 @@ export function GoogleSignInButton({ onError }: { onError: (message: string) => 
       accessibilityLabel="Continue with Google"
       style={[styles.button, !request && styles.buttonDisabled]}
     >
-      <AppText variant="title" color="#1F1F1F">
-        Continue with Google
-      </AppText>
+      <View style={styles.content}>
+        <Image source={gLogo} style={styles.logo} />
+        {/* System font deliberately (not Hanken): the Apple button beside this
+            renders SF, and Google's branding spec wants its standard button
+            typography — the provider pair must read as one matched set. */}
+        <Text style={styles.label} maxFontSizeMultiplier={1.4}>
+          Continue with Google
+        </Text>
+      </View>
     </Press>
   );
 }
 
 const styles = StyleSheet.create({
-  // Matches the Apple button's geometry exactly: same height, same radius —
-  // one provider stack, two equals. White per Google's light-button spec.
+  // Geometry matches the Apple button exactly — same height, same radius,
+  // same white — so the provider stack reads as one set. Colors per Google's
+  // light-button spec (#FFFFFF fill, #1F1F1F text, official G mark).
   button: {
     height: 52,
     borderRadius: radius.button,
@@ -87,6 +96,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logo: {
+    width: 19,
+    height: 19,
+    resizeMode: 'contain',
+  },
+  label: {
+    fontSize: 19,
+    fontWeight: '600',
+    color: '#1F1F1F',
+    letterSpacing: -0.2,
   },
   buttonDisabled: {
     opacity: 0.5,

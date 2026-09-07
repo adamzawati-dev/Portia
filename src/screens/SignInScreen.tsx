@@ -71,6 +71,7 @@ export function SignInScreen() {
               directly below Apple when its auth lands — same height, same radius,
               same gap. Never fake a provider before it works. */}
           <View style={styles.providers}>
+            {GOOGLE_ENABLED ? <GoogleSignInButton onError={setError} /> : null}
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
@@ -78,7 +79,6 @@ export function SignInScreen() {
               onPress={handlePress}
               style={styles.providerButton}
             />
-            {GOOGLE_ENABLED ? <GoogleSignInButton onError={setError} /> : null}
           </View>
           <AppText variant="caption" color={palette.textTertiary} style={styles.fineprint}>
             No password. Read-only access to your accounts.
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   providers: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   providerButton: {
     height: 52,

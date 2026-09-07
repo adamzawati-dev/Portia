@@ -100,7 +100,7 @@ hero number must arrive precomputed).
 ### `POST /chat`
 Send a message to Portia; receive her reply (possibly several messages).
 - **Body** `{ message: string }`
-- **200** `{ messages: ChatMessage[] }` where
+- **200** `{ messages: ChatMessage[], userMessageId?: string }` where
   ```
   ChatMessage = {
     id: string
@@ -109,10 +109,38 @@ Send a message to Portia; receive her reply (possibly several messages).
     createdAt: string         // ISO 8601
   }
   ```
+- **`messages` never echoes the user's own message** — it contains Portia's reply
+  only. The client does not need to de-duplicate by text.
+- `userMessageId` is the persisted id of the user's turn (the same id that row will
+  carry in `/chat/history`), so an optimistic bubble can be reconciled by id. Absent
+  only if persistence of the turn itself failed.
 
 ### `GET /chat/history?cursor=<opaque>`
 Prior conversation, newest page first; omit `cursor` for the latest page.
 - **200** `{ messages: ChatMessage[], nextCursor?: string }`
+- **Page order is authoritative for conversation sequence** (server orders by a
+  monotonic per-row sequence, newest first). Within any page, a user message always
+  precedes its reply in conversation order (i.e. appears after it in the
+  newest-first payload). Do NOT sort by `createdAt`: a turn's user and reply rows
+  are persisted together and can share an identical timestamp — ties are expected
+  and carry no ordering information.
+
+### `DELETE /account`
+Permanent account deletion (App Store Guideline 5.1.1(v)). Auth: bearer, same as
+everything else.
+- **204** on success, empty body. **Idempotent**: repeating the call (including with
+  a token whose account was already deleted) also returns 204.
+- After 204 the client signs out locally; the Supabase session is dead server-side.
+- What it does, in order: revokes every Plaid item at Plaid (`/item/remove`, so the
+  bank links actually die), purges all financial data (accounts, transactions,
+  balances), chat history, extracted facts, goals, moments/diagnostic, then deletes
+  the Supabase auth user. External revocations that fail transiently are retried
+  durably server-side; the account is already unusable in the meantime.
+- **Irrecoverable**: everything above. The only thing retained is a deletion audit
+  record containing salted hashes of identifiers (no financial data, no names) plus
+  encrypted retry material until external cleanup completes.
+- `DELETE /me` is a deployed alias with identical behavior; `/account` is the
+  contract path.
 
 ---
 
@@ -161,3 +189,4 @@ digit rejects the generation and a deterministic fallback ships instead).
 | GET    | `/chat/history`       | Prior conversation               |
 | GET    | `/diagnostic`         | Day-one paced reveal             |
 | POST   | `/diagnostic/continue`| Seed chat opening after reveal   |
+| DELETE | `/account`            | Permanent account deletion (204) |

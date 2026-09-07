@@ -41,32 +41,45 @@ function Holding() {
 }
 
 // Routes the user by session phase. No nav library yet — three destinations, no
-// back-stack (see src/auth/session for the rationale).
+// back-stack (see src/auth/session for the rationale). Each phase change fades
+// in over the shared environment, so launch → auth → onboarding → app reads as
+// one continuous surface, not unrelated screens.
 function Root() {
   const { phase, refresh, completeDiagnostic } = useSession();
+  let screen: React.ReactNode;
   switch (phase) {
     case 'loading':
-      return <Holding />;
+      screen = <Holding />;
+      break;
     case 'signedOut':
-      // The pre-auth value sequence, then Sign in with Apple.
-      return <PreAuth />;
+      // The pre-auth value sequence, then sign-in.
+      screen = <PreAuth />;
+      break;
     case 'onboarding':
       // A successful Plaid link re-checks onboarding state and routes onward.
-      return (
+      screen = (
         <Suspense fallback={<Holding />}>
           <BankConnectScreen onConnected={refresh} />
         </Suspense>
       );
+      break;
     case 'diagnostic':
       // The day-one reveal, then into the app.
-      return (
+      screen = (
         <Suspense fallback={<Holding />}>
           <DiagnosticScreen onDone={completeDiagnostic} />
         </Suspense>
       );
+      break;
     case 'ready':
-      return <MainTabs />;
+      screen = <MainTabs />;
+      break;
   }
+  return (
+    <Animated.View key={phase} entering={FadeIn.duration(260)} style={styles.phase}>
+      {screen}
+    </Animated.View>
+  );
 }
 
 export default function App() {
@@ -94,5 +107,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+  },
+  phase: {
+    flex: 1,
   },
 });

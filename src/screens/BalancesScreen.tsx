@@ -235,7 +235,9 @@ export function BalancesScreen() {
   }, [load]);
 
   const contentPad = {
-    paddingTop: insets.top + spacing.xxl,
+    // The composition starts deliberately low — the top breathes; the gear
+    // owns the corner alone.
+    paddingTop: insets.top + spacing.xxl * 3,
     // Clears the floating nav and the home indicator.
     paddingBottom: insets.bottom + TAB_BAR_SPACE + spacing.md,
   };
@@ -312,7 +314,7 @@ export function BalancesScreen() {
       <AppText variant="overline" color={palette.textTertiary}>
         AVAILABLE CASH
       </AppText>
-      <Money value={heroValue} variant="numXL" color={palette.signature} style={styles.heroGap} />
+      <Money value={heroValue} variant="numHero" color={palette.signature} style={styles.heroGap} />
       <Animated.View style={captionStyle}>
         <AppText variant="caption" color={palette.textSecondary}>
           {[
@@ -467,8 +469,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   heroGap: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
   },
   tryAgain: {
     alignSelf: 'flex-start',

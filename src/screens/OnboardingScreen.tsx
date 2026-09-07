@@ -1,8 +1,9 @@
 // src/screens/OnboardingScreen.tsx
-// The pre-auth value sequence: three short beats in Portia's voice before the user
-// signs in. Anti-budget, anchored, honest, no verdicts. Each beat is one statement
-// on a single flat card (content, so no glass) over the Dusk environment, with a
-// Continue and a Skip — the whole thing is skippable at any point. The figure in
+// The pre-auth value sequence: three short beats in Portia's OWN voice — no
+// card, no carousel. Each beat is Portia speaking: her apricot rule (the same
+// mark that opens every answer in chat), then one editorial statement directly
+// on the Dusk environment. The first minute and the thousandth conversation
+// share one visual language. Continue and Skip throughout. The figure in
 // beat two is illustrative (the diagnostic teaser), shown in the apricot
 // signature: this is the positive moment the signature is reserved for.
 //
@@ -20,10 +21,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { palette, radius, spacing } from '../../theme/dusk';
+import { palette, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
-import { Surface } from '../components/Surface';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Press } from '../components/Press';
 import { useMotion } from '../hooks/useMotion';
@@ -125,23 +125,23 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
         <View style={styles.center}>
           <Animated.View style={entranceStyle}>
-            <Surface radius={radius.card} style={styles.card}>
-              <AppText
-                variant="display"
-                accessibilityLabel={beat.plain}
-                style={styles.statement}
-              >
-                {beat.segments.map((seg, i) =>
-                  seg.accent ? (
-                    <AppText key={i} variant="display" color={palette.signature} tabular>
-                      {seg.text}
-                    </AppText>
-                  ) : (
-                    seg.text
-                  ),
-                )}
-              </AppText>
-            </Surface>
+            {/* Portia's mark — the same rule that opens her answers in chat. */}
+            <View style={styles.rule} />
+            <AppText
+              variant="display"
+              accessibilityLabel={beat.plain}
+              style={styles.statement}
+            >
+              {beat.segments.map((seg, i) =>
+                seg.accent ? (
+                  <AppText key={i} variant="display" color={palette.signature} tabular>
+                    {seg.text}
+                  </AppText>
+                ) : (
+                  seg.text
+                ),
+              )}
+            </AppText>
           </Animated.View>
         </View>
 
@@ -179,13 +179,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  card: {
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.xl,
+  rule: {
+    width: 22,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: palette.signature,
+    marginBottom: spacing.lg,
   },
   statement: {
     // A touch more leading than the display token: this is a paragraph, not a label.
     lineHeight: 38,
+    maxWidth: 330,
   },
   footer: {
     paddingTop: spacing.lg,

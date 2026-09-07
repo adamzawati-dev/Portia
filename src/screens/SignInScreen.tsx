@@ -14,6 +14,7 @@ import { AppText } from '../components/AppText';
 import { Press } from '../components/Press';
 import { useSession } from '../auth/session';
 import { APPLE_CANCELED } from '../auth/apple';
+import { GoogleSignInButton, GOOGLE_ENABLED } from '../auth/GoogleSignInButton';
 
 export function SignInScreen() {
   const insets = useSafeAreaInsets();
@@ -77,6 +78,7 @@ export function SignInScreen() {
               onPress={handlePress}
               style={styles.providerButton}
             />
+            {GOOGLE_ENABLED ? <GoogleSignInButton onError={setError} /> : null}
           </View>
           <AppText variant="caption" color={palette.textTertiary} style={styles.fineprint}>
             No password. Read-only access to your accounts.

@@ -11,9 +11,9 @@
 //
 // The thread is an inverted FlatList: offset 0 is the newest message, so the
 // keyboard shrinking the list keeps the latest turns pinned and visible for
-// free, and maintainVisibleContentPosition holds the reader's place when new
-// content lands while they're scrolled up. Content dissolves under the fixed
-// header through a true alpha mask (MaskedView). The seam is still
+// free. No maintainVisibleContentPosition (see the list props for why —
+// Fabric overlap bug); scrolled-up readers get the Latest pill. Content
+// dissolves under the fixed header through a true alpha mask (MaskedView). The seam is still
 // request/response — src/chat/stream presents the arrived reply as a token
 // stream. This screen renders exactly what arrives and computes nothing.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -365,10 +365,13 @@ export function ChatScreen() {
                   // header and its dissolve tail.
                   { paddingBottom: headerH + gradients.headerFade.tail + spacing.md },
                 ]}
-                maintainVisibleContentPosition={{
-                  minIndexForVisible: 0,
-                  autoscrollToTopThreshold: NEAR_BOTTOM_PX,
-                }}
+                // Deliberately NO maintainVisibleContentPosition: on the New
+                // Architecture, mvcp + inverted + an index-0 insertion in the
+                // same frame as the streaming footer collapsing re-anchored
+                // against stale cell offsets — the new user row rendered INSIDE
+                // the tall assistant row. At offset 0 an inverted list shows
+                // new head items natively with no anchor math; scrolled-up
+                // readers get the Latest pill instead of a held anchor.
                 keyboardDismissMode="interactive"
                 onScroll={onScroll}
                 scrollEventThrottle={32}

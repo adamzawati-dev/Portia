@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   userRow: {
     alignSelf: 'flex-end',
     alignItems: 'flex-end',
-    maxWidth: '85%',
+    maxWidth: '78%', // a one-line message reads compact, never billboard
     marginVertical: spacing.sm,
     gap: spacing.xs,
   },
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     backgroundColor: surface.userMessage,
     borderRadius: radius.card,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
   provenance: {
     marginTop: spacing.md,

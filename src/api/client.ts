@@ -32,6 +32,8 @@ export interface PortiaApi {
   sendChat(message: string): Promise<ChatReply>;
   getDiagnostic(): Promise<Diagnostic>;
   continueDiagnostic(): Promise<ContinueDiagnostic>;
+  /** DELETE /account — 204, idempotent. Permanent; the caller signs out on success. */
+  deleteAccount(): Promise<void>;
 }
 
 // The bearer token attached to backend requests. The Supabase session is the
@@ -75,6 +77,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;
     throw new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
   }
+  // 204 (account deletion) has no body by contract.
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -89,6 +93,7 @@ const httpApi: PortiaApi = {
   sendChat: (message) => request('POST', '/chat', { message }),
   getDiagnostic: () => request('GET', '/diagnostic'),
   continueDiagnostic: () => request('POST', '/diagnostic/continue'),
+  deleteAccount: () => request('DELETE', '/account'),
 };
 
 // `require` (not a static import) so the mock module is only pulled in when used.

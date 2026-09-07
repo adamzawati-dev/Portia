@@ -25,6 +25,7 @@ import { AppText } from './AppText';
 import { Press } from './Press';
 import { useMotion } from '../hooks/useMotion';
 import { useSession } from '../auth/session';
+import { api, ApiError } from '../api/client';
 import { getAccountsCacheSync } from '../api/accountsCache';
 import { connectBank, PlaidCanceled } from '../plaid/link';
 
@@ -107,6 +108,38 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
     ]);
   };
 
+  // Account deletion (App Store 5.1.1(v)). DELETE /account is 204 and idempotent;
+  // after success the backend has revoked the bank links and deleted the auth user,
+  // so signOut() only clears the local session (supabase-js ignores the dead-user
+  // 403 on revoke and still removes it).
+  const [deleting, setDeleting] = useState(false);
+  const deleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await api.deleteAccount();
+      await signOut();
+    } catch (e) {
+      Alert.alert(
+        'Couldn’t delete your account',
+        e instanceof ApiError ? e.message : 'The request didn’t go through. Try again.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Delete your account?',
+      'This disconnects your banks and permanently erases your balances, transactions, and your entire history with Portia. There’s no way to undo it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void deleteAccount() },
+      ],
+    );
+  };
+
   if (!open) return null;
 
   return (
@@ -140,6 +173,13 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
               />
               <View style={styles.divider} />
               <SheetRow icon="rectangle.portrait.and.arrow.right" label="Sign out" onPress={confirmSignOut} destructive />
+              <View style={styles.divider} />
+              <SheetRow
+                icon="trash.fill"
+                label={deleting ? 'Deleting…' : 'Delete my account'}
+                onPress={confirmDeleteAccount}
+                destructive
+              />
             </View>
           </Glass.Sheet>
         </Animated.View>

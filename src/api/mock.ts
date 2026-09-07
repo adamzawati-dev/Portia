@@ -48,6 +48,10 @@ const history: ChatMessage[] = SEED_MESSAGES.map((m, i) => ({
 let turn = 0;
 
 export const mockApi: PortiaApi = {
+  async deleteAccount(): Promise<void> {
+    return delay(undefined);
+  },
+
   async getMe(): Promise<Me> {
     return delay({
       user: { id: 'mock-user' },

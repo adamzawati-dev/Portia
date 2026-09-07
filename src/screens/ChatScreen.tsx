@@ -111,15 +111,29 @@ export function ChatScreen() {
       .getChatHistory()
       .then((h) => {
         if (!alive.current) return;
-        // The contract's page is newest-first; the thread renders oldest-first.
-        const ordered = [...h.messages].sort(
-          (a, b) => Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? ''),
-        );
-        setMessages(ordered);
+        // The page's ORDER is the truth about the conversation — never re-sort
+        // individual messages by createdAt: a user turn and its reply are often
+        // persisted together with identical timestamps, and a timestamp sort
+        // then leaves the newest-first adjacency intact (reply above question —
+        // the reload-ordering bug). Instead, detect the page's orientation from
+        // the first strict timestamp inequality and reverse it wholesale, so
+        // server adjacency is preserved exactly. (The contract serves newest-
+        // first; the mock serves oldest-first — both land correctly.)
+        const page = [...h.messages];
+        let orientation = 0; // -1 = newest-first, 1 = oldest-first
+        for (let i = 1; i < page.length && orientation === 0; i++) {
+          const prev = Date.parse(page[i - 1].createdAt ?? '');
+          const cur = Date.parse(page[i].createdAt ?? '');
+          if (prev !== cur) orientation = prev > cur ? -1 : 1;
+        }
+        // Undecidable (0 or 1 message, or all-equal stamps): assume the
+        // contract's newest-first.
+        if (orientation !== 1) page.reverse();
+        setMessages(page);
         // Just after the reveal, Portia's opening line may still be writing
         // (POST /diagnostic/continue is fire-and-forget) -- an empty thread
         // re-checks briefly so the seed is collected, not missed.
-        if (ordered.length === 0 && seedTries.current++ < 3) {
+        if (page.length === 0 && seedTries.current++ < 3) {
           setTimeout(() => alive.current && loadHistory(), 1500);
         }
       })

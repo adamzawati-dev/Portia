@@ -10,12 +10,18 @@ const POLL_MS = 5000;
 // Past this with a backfill still incomplete, the chip switches to the honest
 // "this bank is slow" copy instead of implying progress that isn't visible.
 const STALL_MS = 10 * 60 * 1000;
+// Analysis (backfill done, diagnostic still 'pending') normally lands in ~30s; past
+// this it has almost certainly crashed server-side. The chip must say so -- a crashed
+// write presented as normal progress is how a production bug stayed invisible.
+const ANALYZE_STALL_MS = 3 * 60 * 1000;
 
 export type SyncStatus = {
   items: SyncItem[];
   diagnosticState: Me['onboarding']['diagnosticState'];
   /** A backfill has been incomplete for longer than STALL_MS. */
   stalled: boolean;
+  /** Backfill finished but the diagnostic has been 'pending' too long -- stuck. */
+  analyzingStalled: boolean;
   /** Anything worth showing a chip for. */
   active: boolean;
   refetch: () => void;
@@ -26,15 +32,24 @@ export function useSyncStatus(): SyncStatus {
   const [diagnosticState, setDiagnosticState] =
     useState<Me['onboarding']['diagnosticState']>('done');
   const [stalled, setStalled] = useState(false);
+  const [analyzingStalled, setAnalyzingStalled] = useState(false);
   const startedAt = useRef(Date.now());
+  const analyzingSince = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       const me = await api.getMe();
-      setItems(me.onboarding.items ?? []);
+      const nextItems = me.onboarding.items ?? [];
+      setItems(nextItems);
       setDiagnosticState(me.onboarding.diagnosticState);
-      const incomplete = (me.onboarding.items ?? []).some((i) => !i.historicalUpdateComplete);
+      const incomplete = nextItems.some((i) => !i.historicalUpdateComplete);
       setStalled(incomplete && Date.now() - startedAt.current > STALL_MS);
+      const analyzing = !incomplete && me.onboarding.diagnosticState === 'pending';
+      if (!analyzing) analyzingSince.current = null;
+      else analyzingSince.current ??= Date.now();
+      setAnalyzingStalled(
+        analyzing && Date.now() - (analyzingSince.current ?? Date.now()) > ANALYZE_STALL_MS,
+      );
     } catch {
       // Transient fetch failures keep the last known state; the next tick retries.
     }
@@ -53,5 +68,5 @@ export function useSyncStatus(): SyncStatus {
     return () => clearInterval(t);
   }, [active, load]);
 
-  return { items, diagnosticState, stalled, active, refetch: () => void load() };
+  return { items, diagnosticState, stalled, analyzingStalled, active, refetch: () => void load() };
 }

@@ -14,7 +14,7 @@ import { api } from '../api/client';
 import type { SyncStatus } from '../hooks/useSyncStatus';
 
 export function SyncChip({ status, onOpenReveal }: { status: SyncStatus; onOpenReveal: () => void }) {
-  const { items, diagnosticState, stalled } = status;
+  const { items, diagnosticState, stalled, analyzingStalled } = status;
   const syncing = items.filter((i) => !i.historicalUpdateComplete);
 
   let label: string;
@@ -29,7 +29,12 @@ export function SyncChip({ status, onOpenReveal }: { status: SyncStatus; onOpenR
       ? `${name} is syncing slowly. I'll tell you when it lands.`
       : `Reading ${name} · ${first.transactionCount.toLocaleString('en-US')} transactions so far`;
   } else if (diagnosticState === 'pending') {
-    label = 'Analyzing. Building your first read.';
+    // Honest failure state: a crashed analysis must never read as normal progress.
+    // The tap is a real retry (the pending kick), and the server also self-heals on
+    // its stale-claim sweep.
+    label = analyzingStalled
+      ? "Something's stuck on my end. Tap me to retry."
+      : 'Analyzing. Building your first read.';
   } else {
     return null;
   }

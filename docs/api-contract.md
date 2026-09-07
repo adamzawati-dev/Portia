@@ -81,10 +81,31 @@ hero number must arrive precomputed).
 - **200** `AccountsOverview` where
   ```
   AccountsOverview = {
-    summary: { cashAvailable: number, window: string }
+    summary: {
+      cashAvailable: number
+      window: string            // "available now", widens to "as of last refresh"
+                                // when any institution below is cache-served
+      creditOwed: number        // backend-summed posted balance across credit accounts
+      creditOwedWindow: string
+      pending?: { label: string, amount: number, window: string }[]
+                                // live pending charges per credit account; omitted
+                                // when there are none
+      insight?: string          // ONE Portia-voiced sentence for the Overview brief,
+                                // deterministic template over backend-computed figures
+                                // (anchored + windowed, never model-generated); render
+                                // verbatim, omit section when absent
+    }
     institutions: Institution[]
   }
-  Institution = { institutionName: string, accounts: Account[] }
+  Institution = {
+    institutionName: string
+    accounts: Account[]
+    refreshFailed?: boolean     // live refresh failed; accounts below are the cached
+                                // last-synced balances (their `window` says when)
+    lastGoodWindow?: string     // e.g. "as of Sep 5"; "no successful refresh yet"
+  }
+  // A failing institution is NOT dropped: its accounts are served from cache so the
+  // app can say "Wells Fargo didn't refresh. Your last balance is still shown."
   Account = {
     id: string
     name: string              // e.g. "Checking"
@@ -107,6 +128,10 @@ Send a message to Portia; receive her reply (possibly several messages).
     sender: 'portia' | 'user'
     text: string
     createdAt: string         // ISO 8601
+    sources?: string[]        // institutions whose data informed this reply, e.g.
+                              // ["American Express", "Wells Fargo"]; present only when
+                              // the turn read financial data — replace the all-
+                              // institutions muted line with this when present
   }
   ```
 - **`messages` never echoes the user's own message** — it contains Portia's reply

@@ -51,8 +51,31 @@ There are no auth endpoints. Identity is Supabase-native:
 > migrated automatically. New app identity, re-link the bank. (Conscious cutover.)
 
 ### `GET /me`
-Who the user is and where onboarding stands — drives the entry screen.
-- **200** `{ user: { id: string }, onboarding: { hasLinkedBank: boolean, diagnosticState: 'none' | 'pending' | 'ready' | 'done' } }`
+Who the user is and where onboarding stands — drives the entry screen AND the
+in-app sync chip (syncing never blocks a screen; the user lands in the app and
+progress streams in).
+- **200**
+  ```
+  {
+    user: { id: string }
+    onboarding: {
+      hasLinkedBank: boolean
+      diagnosticState: 'none' | 'pending' | 'ready' | 'done'
+      items: {                          // per-institution backfill progress
+        institutionName: string | null
+        historicalUpdateComplete: boolean
+        transactionCount: number        // rows landed so far — render verbatim
+      }[]
+    }
+  }
+  ```
+- **Poll THIS endpoint for sync/diagnostic status, never `GET /diagnostic`** — a
+  'ready' fetch of `/diagnostic` marks the reveal as seen. (Fetching it while
+  'pending' is safe and doubles as a retry kick.)
+- After `POST /plaid/linking-done` the backend seeds Portia's narration line into
+  the chat thread ("<banks> are in. I'm reading your transaction history now…"),
+  idempotently and only as the thread's first message — the app just fetches
+  history as normal.
 
 ---
 

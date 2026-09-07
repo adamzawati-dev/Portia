@@ -2,8 +2,11 @@
 // The day-one Diagnostic — the screenshottable hero moment. Portia has read your
 // history and drops it one truth at a time: a full-screen card per segment, a huge
 // apricot figure that counts up, one line of voice. Auto-advances (~2.8s) with
-// tap-to-skip; the last card is the hook + a CTA into the app. Runs once, between
-// bank-link and the tabs (see the 'diagnostic' phase in src/auth/session).
+// tap-to-skip; the last card is the hook + a CTA into the app. Runs once, and is
+// only ever entered when the read is READY: either the cold-open route (an
+// unviewed reveal plays first -- see src/auth/session) or the in-app SyncChip
+// invite (presented as a modal from MainTabs). Syncing never blocks on this
+// screen anymore; that wait lives in the app as streamed progress.
 //
 // Boundary: every figure and line come from GET /diagnostic. The count-up only
 // animates toward the real value; nothing here is invented. All motion is
@@ -41,19 +44,10 @@ const AUTO_MS = 2800;
 const POLL_STEPS_MS = [2000, 3000, 5000, 5000, 8000, 10000];
 const POLL_MAX_MS = 180_000;
 
-// Portia-voiced waiting copy, rotated while the engine reads the history.
-const WAIT_LINES = [
-  'Reading your last two years…',
-  'Every transaction. Every pattern. Give me a minute.',
-  'Almost there. This part is worth the wait.',
-];
-const WAIT_LINE_MS = 8000;
-
 export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   const motion = useMotion();
   const [diag, setDiag] = useState<Diagnostic | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-  const [waitLine, setWaitLine] = useState(0);
   const [index, setIndex] = useState(0);
 
   // Poll with backoff until the diagnostic is ready or POLL_MAX_MS passes. Fetch
@@ -91,12 +85,6 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
     return () => {
       active = false;
     };
-  }, []);
-
-  // Rotate the waiting copy so the screen reads as alive, not stuck.
-  useEffect(() => {
-    const t = setInterval(() => setWaitLine((i) => (i + 1) % WAIT_LINES.length), WAIT_LINE_MS);
-    return () => clearInterval(t);
   }, []);
 
   const segments = diag?.segments ?? [];
@@ -179,13 +167,17 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
       );
     }
 
+    // Normally a sub-second fetch: this screen is only ever entered when the read
+    // is ready (cold-open route or the chip invite). Skip is present from the first
+    // frame -- never a screen the user can't leave.
     return (
       <Background>
         <View style={styles.centerWrap}>
           <AppText variant="title" color={palette.textSecondary} style={styles.loading}>
-            {WAIT_LINES[waitLine]}
+            One second, pulling it up.
           </AppText>
         </View>
+        <SkipButton onSkip={onDone} />
       </Background>
     );
   }

@@ -55,7 +55,11 @@ export const mockApi: PortiaApi = {
   async getMe(): Promise<Me> {
     return delay({
       user: { id: 'mock-user' },
-      onboarding: { hasLinkedBank: true, diagnosticState: 'done' },
+      onboarding: {
+        hasLinkedBank: true,
+        diagnosticState: 'done',
+        items: [{ institutionName: 'Mock Bank', historicalUpdateComplete: true, transactionCount: 1240 }],
+      },
     });
   },
 
@@ -74,7 +78,13 @@ export const mockApi: PortiaApi = {
   },
 
   async finishLinking(): Promise<LinkingDone> {
-    return delay({ onboarding: { hasLinkedBank: true, diagnosticState: 'ready' as const } });
+    return delay({
+      onboarding: {
+        hasLinkedBank: true,
+        diagnosticState: 'ready' as const,
+        items: [{ institutionName: 'Mock Bank', historicalUpdateComplete: true, transactionCount: 1240 }],
+      },
+    });
   },
 
   async continueDiagnostic(): Promise<ContinueDiagnostic> {

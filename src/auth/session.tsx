@@ -51,7 +51,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const { hasLinkedBank, diagnosticState } = me.onboarding;
     if (!hasLinkedBank) {
       setPhase('onboarding');
-    } else if (diagnosticState === 'ready' || diagnosticState === 'pending') {
+    } else if (diagnosticState === 'ready') {
+      // An unviewed reveal at cold open plays first -- it's the hero moment and the
+      // user has had breathing room since the invite. Never at 'pending': syncing no
+      // longer blocks; the user lands in the app and progress streams into the chip.
       setPhase('diagnostic');
     } else {
       setPhase('ready');

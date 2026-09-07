@@ -7,11 +7,20 @@ import { Message } from '../chat/types';
 
 // Auth is Supabase-native (signInWithIdToken in src/auth) — the bearer sent to the
 // backend is the Supabase access token; there is no auth endpoint in the contract.
+export type SyncItem = {
+  institutionName: string | null;
+  historicalUpdateComplete: boolean;
+  transactionCount: number;
+};
+
 export type Me = {
   user: { id: string };
   onboarding: {
     hasLinkedBank: boolean;
     diagnosticState: 'none' | 'pending' | 'ready' | 'done';
+    // Per-institution backfill progress -- drives the in-app sync chip. Real
+    // state from the backend; the app renders it and adds nothing.
+    items: SyncItem[];
   };
 };
 

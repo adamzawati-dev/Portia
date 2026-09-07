@@ -30,7 +30,7 @@ import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { glass, gradients, palette, spacing } from '../../theme/dusk';
+import { gradients, palette, spacing, surface } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   },
   rowDivider: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: glass.divider,
+    borderBottomColor: surface.separator,
   },
   rowLeft: {
     flex: 1,

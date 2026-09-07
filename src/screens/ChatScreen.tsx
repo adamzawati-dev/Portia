@@ -35,7 +35,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { glass, gradients, palette, radius, spacing } from '../../theme/dusk';
+import { glass, gradients, palette, radius, spacing, surface } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   chip: {
-    backgroundColor: glass.tintFrom,
+    backgroundColor: surface.userMessage,
     borderRadius: radius.chip,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.border,

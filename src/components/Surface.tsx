@@ -5,7 +5,7 @@
 // nothing to composite, and lets the environment's blooms stay the depth cue.
 import React from 'react';
 import { StyleSheet, View, ViewProps } from 'react-native';
-import { glass, radius as radiusTokens } from '../../theme/dusk';
+import { glass, radius as radiusTokens, surface } from '../../theme/dusk';
 
 export type SurfaceProps = ViewProps & {
   /** Corner radius token value. Defaults to the card radius. */
@@ -21,7 +21,7 @@ export function Surface({ radius = radiusTokens.card, tint, style, children, ...
       style={[
         {
           borderRadius: radius,
-          backgroundColor: glass.fallbackFill,
+          backgroundColor: surface.elevated,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: glass.border,
           overflow: 'hidden',

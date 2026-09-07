@@ -87,6 +87,18 @@ export const chrome = {
   border: 'rgba(255,255,255,0.08)', // at most 1px, at most this
 } as const;
 
+// Semantic surfaces — the ONE vocabulary for fills and separators. Every value
+// references an existing material token above; components speak these names
+// instead of scattering raw rgba choices.
+export const surface = {
+  elevated: glass.fallbackFill, // flat content surfaces (cards via Surface.tsx)
+  userMessage: glass.tintFrom, // the user's chat chip + prompt chips
+  faint: glass.tintTo, // barely-there fills (thinking strip)
+  input: chrome.composerFill,
+  inputFocus: chrome.composerFillFocus,
+  separator: glass.divider, // 8% hairlines between rows/turns
+} as const;
+
 export const radius = {
   button: 14,
   card:   24, // flat content surfaces + chrome bars

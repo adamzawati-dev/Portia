@@ -66,15 +66,20 @@ export function SignInScreen() {
               </Press>
             </View>
           ) : null}
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-            cornerRadius={radius.button}
-            onPress={handlePress}
-            style={styles.appleButton}
-          />
+          {/* Provider stack. One provider today; "Continue with Google" slots in
+              directly below Apple when its auth lands — same height, same radius,
+              same gap. Never fake a provider before it works. */}
+          <View style={styles.providers}>
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+              cornerRadius={radius.button}
+              onPress={handlePress}
+              style={styles.providerButton}
+            />
+          </View>
           <AppText variant="caption" color={palette.textTertiary} style={styles.fineprint}>
-            No password. Two seconds.
+            No password. Read-only access to your accounts.
           </AppText>
         </View>
       </View>
@@ -99,7 +104,10 @@ const styles = StyleSheet.create({
   actions: {
     gap: spacing.md,
   },
-  appleButton: {
+  providers: {
+    gap: spacing.sm,
+  },
+  providerButton: {
     height: 52,
     width: '100%',
   },

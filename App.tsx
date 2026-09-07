@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -21,15 +22,19 @@ const DiagnosticScreen = React.lazy(() =>
   import('./src/screens/DiagnosticScreen').then((m) => ({ default: m.DiagnosticScreen })),
 );
 
-// The routing gap right after sign-in (fetching /me): hold the wordmark where
-// the sign-in hero just was, instead of a blank environment.
+// The held frame between states (session hydrating, a lazy screen loading):
+// the wordmark breathing in over the environment — never a blank screen, never
+// a spinner. The native splash (envBase, app.json) hands off to this, so the
+// first second reads as one continuous surface.
 function Holding() {
   return (
     <Background>
       <View style={styles.holding}>
-        <AppText variant="display" color={palette.textPrimary}>
-          Portia
-        </AppText>
+        <Animated.View entering={FadeIn.duration(400)}>
+          <AppText variant="display" color={palette.textPrimary}>
+            Portia
+          </AppText>
+        </Animated.View>
       </View>
     </Background>
   );

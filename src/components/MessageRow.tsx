@@ -27,49 +27,15 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { glass, palette, radius, spacing } from '../../theme/dusk';
+import { glass, palette, radius, spacing, surface } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { AppText } from './AppText';
-import { Money } from './Money';
+import { FinancialCallout } from './FinancialCallout';
 import { Press } from './Press';
 import { MessageProse, extractHero } from '../chat/markdown';
 import { Message } from '../chat/types';
 import { useMotion } from '../hooks/useMotion';
-import { useCountUp } from '../hooks/useCountUp';
 import { getAccountsCacheSync } from '../api/accountsCache';
-
-// Rendering an amount the backend wrote: parse for display only, never math.
-const amountValue = (amount: string) => Number(amount.replace(/[$,]/g, ''));
-
-// The hero figure. Live (streaming in): counts up over the slow duration with
-// a tick at start and a commit as it settles. Committed/history rows show it
-// at rest, so the stream->commit swap never re-animates or double-fires.
-function HeroAmount({ amount, live }: { amount: string; live: boolean }) {
-  const { reduced, durations } = useMotion();
-  const target = amountValue(amount);
-  const animate = live && !reduced;
-  const value = useCountUp(target, durations.slow, animate);
-
-  const ticked = useRef(false);
-  useEffect(() => {
-    if (animate && !ticked.current) {
-      ticked.current = true;
-      haptic.tick();
-    }
-  }, [animate]);
-
-  const settled = useRef(false);
-  useEffect(() => {
-    if (animate && !settled.current && value === target) {
-      settled.current = true;
-      haptic.commit();
-    }
-  }, [animate, value, target]);
-
-  return (
-    <Money value={value} variant="numXL" color={palette.signature} showCents={amount.includes('.')} />
-  );
-}
 
 // Provenance: one quiet line naming where the figures come from — no pills,
 // no borders, just muted metadata ("American Express · Wells Fargo"). The
@@ -117,14 +83,7 @@ function AssistantTurn({ text, live = false }: { text: string; live?: boolean })
       <Animated.View style={[styles.rule, ruleStyle]} />
       <Animated.View style={bodyStyle}>
         {hero ? (
-          <View style={styles.hero}>
-            <HeroAmount amount={hero.amount} live={live} />
-            {hero.label ? (
-              <AppText variant="overline" color={palette.textTertiary} style={styles.heroLabel}>
-                {hero.label.toUpperCase()}
-              </AppText>
-            ) : null}
-          </View>
+          <FinancialCallout amount={hero.amount} label={hero.label} live={live} style={styles.hero} />
         ) : null}
         <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
         {live ? null : <Provenance />}
@@ -300,9 +259,6 @@ const styles = StyleSheet.create({
   hero: {
     marginBottom: spacing.md,
   },
-  heroLabel: {
-    marginTop: spacing.xs,
-  },
   userRow: {
     alignSelf: 'flex-end',
     alignItems: 'flex-end',
@@ -311,7 +267,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   userChip: {
-    backgroundColor: glass.tintFrom,
+    backgroundColor: surface.userMessage,
     borderRadius: radius.card,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -321,7 +277,7 @@ const styles = StyleSheet.create({
   },
   turnDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: glass.divider,
+    backgroundColor: surface.separator,
     marginTop: spacing.lg,
   },
   thinkStrip: {
@@ -331,7 +287,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.border,
-    backgroundColor: glass.tintTo,
+    backgroundColor: surface.faint,
     borderRadius: radius.chip,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,

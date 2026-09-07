@@ -16,7 +16,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SymbolView } from 'expo-symbols';
-import { chrome, palette, radius, spacing, type as typeTokens } from '../../theme/dusk';
+import { chrome, palette, radius, spacing, surface, type as typeTokens } from '../../theme/dusk';
 import { fontFamilyForWeight } from '../../theme/fonts';
 import { AppText } from './AppText';
 import { Press } from './Press';
@@ -56,7 +56,7 @@ export function Composer({
     backgroundColor: interpolateColor(
       focus.value,
       [0, 1],
-      [chrome.composerFill, chrome.composerFillFocus],
+      [surface.input, surface.inputFocus],
     ),
   }));
 

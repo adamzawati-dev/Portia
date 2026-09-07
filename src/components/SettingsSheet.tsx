@@ -25,6 +25,7 @@ import { AppText } from './AppText';
 import { Press } from './Press';
 import { useMotion } from '../hooks/useMotion';
 import { useSession } from '../auth/session';
+import { getAccountsCacheSync } from '../api/accountsCache';
 import { connectBank, PlaidCanceled } from '../plaid/link';
 
 const DISMISS_DRAG_PX = 90;
@@ -131,6 +132,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
           <Glass.Sheet radius={radius.sheet} style={styles.sheet}>
             <View style={[styles.inner, { paddingBottom: insets.bottom + spacing.md }]}>
               <View style={styles.grabber} />
+              <ConnectedInstitutions />
               <SheetRow
                 icon="building.columns.fill"
                 label={linking ? 'Opening Plaid…' : 'Add a bank account'}
@@ -143,6 +145,23 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         </Animated.View>
       </View>
     </Modal>
+  );
+}
+
+// The institutions Portia can currently see — read from the accounts cache
+// (real backend data), shown as quiet metadata above the actions.
+function ConnectedInstitutions() {
+  const names = getAccountsCacheSync()?.data.institutions.map((i) => i.institutionName) ?? [];
+  if (names.length === 0) return null;
+  return (
+    <View style={styles.connected}>
+      <AppText variant="overline" color={palette.textTertiary}>
+        CONNECTED
+      </AppText>
+      <AppText variant="body" color={palette.textSecondary} style={styles.connectedNames}>
+        {names.join(' · ')}
+      </AppText>
+    </View>
   );
 }
 
@@ -193,6 +212,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: palette.textTertiary,
     marginBottom: spacing.md,
+  },
+  connected: {
+    paddingVertical: spacing.sm,
+    gap: spacing.xs,
+  },
+  connectedNames: {
+    marginBottom: spacing.xs,
   },
   row: {
     flexDirection: 'row',

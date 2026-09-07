@@ -1,8 +1,9 @@
 // src/screens/BankConnectScreen.tsx
 // The trust moment — the highest-stakes screen in the app. A normal person is about
-// to connect real bank data, so the design does LESS, not more: generous air, flat
-// content surfaces (no glass — glass is chrome-only), signature spent only on the
-// single CTA, no coral, no pulse. The headline and three short assurances carry the privacy posture —
+// to connect real bank data, so the design does LESS, not more: generous air, the
+// assurances as flat editorial rows directly on the environment (no cards, no
+// boxes — the same no-container language as Overview and chat), signature spent
+// only on the single CTA, no coral, no pulse. The headline and three short assurances carry the privacy posture —
 // credentials never reach us, read-only, deletable — because a loud trust screen
 // reads as a scam.
 //
@@ -21,7 +22,6 @@ import { palette, radius, spacing } from '../../theme/dusk';
 import { haptic } from '../../theme/haptics';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
-import { Surface } from '../components/Surface';
 import { Press } from '../components/Press';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { OverviewSkeleton } from '../components/Skeleton';
@@ -119,9 +119,9 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
             </AppText>
           </View>
 
-          <Surface radius={radius.card} style={styles.card}>
+          <View style={styles.rows}>
             {linked.map((name, i) => (
-              <View key={`${name}-${i}`} style={[styles.row, i > 0 && { marginTop: spacing.lg }]}>
+              <View key={`${name}-${i}`} style={styles.row}>
                 <View style={styles.iconWell}>
                   <SymbolView
                     name="checkmark.circle.fill"
@@ -135,7 +135,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
                 </AppText>
               </View>
             ))}
-          </Surface>
+          </View>
 
           <View style={styles.footer}>
             {error ? (
@@ -179,9 +179,9 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
           </AppText>
         </View>
 
-        <Surface radius={radius.card} style={styles.card}>
-          {ASSURANCES.map((a, i) => (
-            <View key={a.title} style={[styles.row, i > 0 && { marginTop: spacing.lg }]}>
+        <View style={styles.rows}>
+          {ASSURANCES.map((a) => (
+            <View key={a.title} style={styles.row}>
               <View style={styles.iconWell}>
                 <SymbolView name={a.icon} size={19} tintColor={palette.signature} weight="medium" />
               </View>
@@ -190,7 +190,7 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
               </AppText>
             </View>
           ))}
-        </Surface>
+        </View>
 
         <View style={styles.footer}>
           {error ? (
@@ -231,9 +231,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     maxWidth: 320,
   },
-  card: {
-    marginTop: spacing.xxl,
-    padding: spacing.xl,
+  rows: {
+    marginTop: spacing.xxl * 2,
+    gap: spacing.xl,
   },
   row: {
     flexDirection: 'row',

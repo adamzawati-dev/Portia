@@ -41,6 +41,8 @@ export function SignInScreen() {
         ]}
       >
         <View style={styles.hero}>
+          {/* Portia's mark — the same rule that opens her answers. */}
+          <View style={styles.rule} />
           <AppText variant="display" color={palette.textPrimary}>
             Portia
           </AppText>
@@ -98,6 +100,13 @@ const styles = StyleSheet.create({
   hero: {
     flex: 1,
     justifyContent: 'center',
+  },
+  rule: {
+    width: 22,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: palette.signature,
+    marginBottom: spacing.lg,
   },
   tagline: {
     marginTop: spacing.md,

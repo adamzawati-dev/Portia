@@ -25,6 +25,7 @@ import { palette, spacing } from '../../theme/dusk';
 import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ProgressDots } from '../components/ProgressDots';
 import { Press } from '../components/Press';
 import { useMotion } from '../hooks/useMotion';
 
@@ -102,15 +103,12 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
         ]}
       >
         <View style={styles.topRow}>
-          <View
-            style={styles.dots}
+          <ProgressDots
+            count={BEATS.length}
+            index={index}
             accessibilityRole="text"
             accessibilityLabel={`Step ${index + 1} of ${BEATS.length}`}
-          >
-            {BEATS.map((_, i) => (
-              <View key={i} style={[styles.dot, i === index ? styles.dotOn : styles.dotOff]} />
-            ))}
-          </View>
+          />
           <Press
             onPress={() => goTo(null)}
             hitSlop={12}
@@ -165,16 +163,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: spacing.sm,
   },
-  dots: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  dot: {
-    height: 4,
-    borderRadius: 2,
-  },
-  dotOn: { width: 22, backgroundColor: palette.signature },
-  dotOff: { width: 7, backgroundColor: palette.textTertiary, opacity: 0.5 },
   center: {
     flex: 1,
     justifyContent: 'center',

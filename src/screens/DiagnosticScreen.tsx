@@ -28,6 +28,7 @@ import { Background } from '../components/Background';
 import { AppText } from '../components/AppText';
 import { Money } from '../components/Money';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ProgressDots } from '../components/ProgressDots';
 import { Press } from '../components/Press';
 import { useMotion, Motion } from '../hooks/useMotion';
 import { useCountUp } from '../hooks/useCountUp';
@@ -289,27 +290,9 @@ function Progress({ count, index }: { count: number; index: number }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.progress, { paddingTop: insets.top + spacing.md }]}>
-      {Array.from({ length: count }).map((_, i) => (
-        <ProgressDot key={i} on={i === index} />
-      ))}
+      <ProgressDots count={count} index={index} />
     </View>
   );
-}
-
-// The active dot stretches and warms to apricot instead of snapping. The
-// neighbors animate in the same beat, so the row's total width barely moves.
-function ProgressDot({ on }: { on: boolean }) {
-  const { durations } = useMotion();
-  const amount = useSharedValue(on ? 1 : 0);
-  useEffect(() => {
-    amount.value = withTiming(on ? 1 : 0, { duration: durations.fast });
-  }, [on, durations, amount]);
-  const style = useAnimatedStyle(() => ({
-    width: interpolate(amount.value, [0, 1], [7, 22]),
-    opacity: interpolate(amount.value, [0, 1], [0.5, 1]),
-    backgroundColor: interpolateColor(amount.value, [0, 1], [palette.textTertiary, palette.signature]),
-  }));
-  return <Animated.View style={[styles.dot, style]} />;
 }
 
 function Footer({ isLast, onDone }: { isLast: boolean; onDone: () => void }) {
@@ -353,10 +336,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.xl,
-  },
-  dot: {
-    height: 4,
-    borderRadius: 2,
   },
   footer: {
     paddingHorizontal: spacing.xl,

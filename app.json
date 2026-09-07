@@ -5,6 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": [
+      "portia",
+      "com.googleusercontent.apps.530140199493-5bng1ik64io7s2tlbjoqn6itu5006sbd"
+    ],
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {

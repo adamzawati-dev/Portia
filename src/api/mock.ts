@@ -47,18 +47,32 @@ const history: ChatMessage[] = SEED_MESSAGES.map((m, i) => ({
 }));
 let turn = 0;
 
+// Onboarding sync progression, so the SyncChip and reveal invite are exercisable
+// without the backend: the first polls report a bank still backfilling with a
+// growing count, then analysis, then the ready invite; fetching the diagnostic
+// marks it seen (mirrors the real server: a 'ready' fetch flips state to 'done').
+let mePolls = 0;
+let diagnosticSeen = false;
+const SYNC_COUNTS = [410, 980, 1240];
+
 export const mockApi: PortiaApi = {
   async deleteAccount(): Promise<void> {
     return delay(undefined);
   },
 
   async getMe(): Promise<Me> {
+    const poll = mePolls++;
+    const syncing = poll < SYNC_COUNTS.length;
+    const analyzing = poll === SYNC_COUNTS.length;
     return delay({
       user: { id: 'mock-user' },
       onboarding: {
         hasLinkedBank: true,
-        diagnosticState: 'done',
-        items: [{ institutionName: 'Mock Bank', historicalUpdateComplete: true, transactionCount: 1240 }],
+        diagnosticState: diagnosticSeen ? 'done' : syncing || analyzing ? 'pending' : 'ready',
+        items: [
+          { institutionName: 'Wells Fargo', historicalUpdateComplete: !syncing, transactionCount: SYNC_COUNTS[Math.min(poll, SYNC_COUNTS.length - 1)] },
+          { institutionName: 'Amex', historicalUpdateComplete: true, transactionCount: 3027 },
+        ],
       },
     });
   },
@@ -93,8 +107,16 @@ export const mockApi: PortiaApi = {
 
   async getAccounts(): Promise<AccountsOverview> {
     return delay({
-      // Backend-computed: total available across depository accounts.
-      summary: { cashAvailable: 12404.12, window: 'as of just now' },
+      // Backend-computed: totals, pending, and the insight sentence all arrive
+      // precomputed; the app renders and never sums.
+      summary: {
+        cashAvailable: 12404.12,
+        window: 'as of last refresh',
+        creditOwed: 842.55,
+        creditOwedWindow: 'as of just now',
+        pending: [{ label: 'Pending on Platinum', amount: 75.75, window: 'as of just now' }],
+        insight: 'Most of your cash is sitting in Way2Save -- $9,120 of $12,404 as of the last refresh.',
+      },
       institutions: [
         {
           institutionName: 'Wells Fargo',
@@ -109,6 +131,15 @@ export const mockApi: PortiaApi = {
             { id: 'acc-3', name: 'Platinum', mask: '1009', type: 'credit', available: 0, current: 842.55, projected: 918.3, window: 'posted now · projected once pending clears' },
           ],
         },
+        {
+          // A bank whose live refresh failed: served from cache, labelled honestly.
+          institutionName: 'Chase',
+          refreshFailed: true,
+          lastGoodWindow: 'as of Sep 5',
+          accounts: [
+            { id: 'acc-4', name: 'Total Checking', mask: '2290', type: 'depository', available: 611.4, current: 611.4, window: 'as of Sep 5' },
+          ],
+        },
       ],
     });
   },
@@ -118,18 +149,21 @@ export const mockApi: PortiaApi = {
   },
 
   async sendChat(message: string): Promise<ChatReply> {
-    history.push({ id: uid('u'), sender: 'user', text: message, createdAt: new Date().toISOString() });
+    const userMessageId = uid('u');
+    history.push({ id: userMessageId, sender: 'user', text: message, createdAt: new Date().toISOString() });
     const reply: ChatMessage = {
       id: uid('p'),
       sender: 'portia',
       text: REPLIES[turn++ % REPLIES.length],
       createdAt: new Date().toISOString(),
+      sources: ['Wells Fargo', 'Amex'],
     };
     history.push(reply);
-    return delay({ messages: [reply] });
+    return delay({ messages: [reply], userMessageId });
   },
 
   async getDiagnostic(): Promise<Diagnostic> {
+    diagnosticSeen = true;
     return delay({
       state: 'ready',
       segments: [

@@ -59,15 +59,24 @@ export type Account = {
 export type Institution = {
   institutionName: string;
   accounts: Account[];
+  /** Live refresh failed; `accounts` are the cached last-synced balances (their
+   *  `window` says when). Say so -- never present cache as live. */
+  refreshFailed?: boolean;
+  lastGoodWindow?: string; // e.g. "as of Sep 5"
 };
 
 // The overview payload. `summary.cashAvailable` is computed by the backend — the
 // app never sums accounts itself.
 export type AccountsSummary = {
   cashAvailable: number;
-  window: string;
-  /** PROPOSED contract addition (not yet served): one Portia-voiced sentence
-   *  for the Overview's intelligence line. Rendered only when present. */
+  window: string; // "available now", widens to "as of last refresh" when any bank is cache-served
+  /** Backend-summed posted balance across credit accounts. Never summed here. */
+  creditOwed?: number;
+  creditOwedWindow?: string;
+  /** Live pending charges per credit account; omitted when there are none. */
+  pending?: { label: string; amount: number; window: string }[];
+  /** One Portia-voiced sentence for the Overview's intelligence line, backend-
+   *  authored from backend-computed figures. Rendered verbatim, only when present. */
   insight?: string;
 };
 
@@ -78,10 +87,17 @@ export type AccountsOverview = {
 
 // Chat — a ChatMessage is a UI Message plus a server timestamp, so it renders
 // through the existing MessageBubble without mapping.
-export type ChatMessage = Message & { createdAt: string };
+export type ChatMessage = Message & {
+  createdAt: string;
+  /** Institutions whose data informed this reply; present only when the turn read
+   *  financial data. Replaces the all-institutions line when present. */
+  sources?: string[];
+};
 
 export type ChatHistory = { messages: ChatMessage[]; nextCursor?: string };
-export type ChatReply = { messages: ChatMessage[] };
+// `messages` never echoes the user's own message. `userMessageId` is the persisted
+// id of the user's turn (same id it carries in /chat/history) for reconciliation.
+export type ChatReply = { messages: ChatMessage[]; userMessageId?: string };
 
 // Diagnostic — each segment is one full-screen card in the paced reveal. `caption`
 // is the voice line and must not restate `figure` (the card shows it big on its own).

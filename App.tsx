@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
@@ -9,6 +9,7 @@ import { fontAssets } from './theme/fonts';
 import { palette, spacing } from './theme/dusk';
 import { Background } from './src/components/Background';
 import { AppText } from './src/components/AppText';
+import { PrimaryButton } from './src/components/PrimaryButton';
 import { MainTabs } from './src/screens/MainTabs';
 import { PreAuth } from './src/screens/PreAuth';
 import { SessionProvider, useSession } from './src/auth/session';
@@ -40,6 +41,39 @@ function Holding() {
   );
 }
 
+// Signed in, but /me could not be reached (offline, backend down, timeout). The
+// session is intact; this is a retry surface, not a sign-out. Foregrounding the
+// app retries on its own (see src/auth/session); the button is the manual path.
+function Unreachable() {
+  const { refresh } = useSession();
+  const [retrying, setRetrying] = useState(false);
+  const tryAgain = async () => {
+    setRetrying(true);
+    try {
+      await refresh(); // success re-routes and unmounts this screen
+    } catch {
+      // Still unreachable: stay here, ready for the next tap.
+    } finally {
+      setRetrying(false);
+    }
+  };
+  return (
+    <Background>
+      <View style={styles.holding}>
+        <AppText variant="display" color={palette.textPrimary}>
+          Portia
+        </AppText>
+        <AppText variant="body" color={palette.textSecondary} style={styles.unreachableLine}>
+          Couldn't reach Portia. Check your connection and try again.
+        </AppText>
+        <View style={styles.unreachableAction}>
+          <PrimaryButton label="Try again" onPress={() => void tryAgain()} loading={retrying} />
+        </View>
+      </View>
+    </Background>
+  );
+}
+
 // Routes the user by session phase. No nav library yet — three destinations, no
 // back-stack (see src/auth/session for the rationale). Each phase change fades
 // in over the shared environment, so launch → auth → onboarding → app reads as
@@ -54,6 +88,9 @@ function Root() {
     case 'signedOut':
       // The pre-auth value sequence, then sign-in.
       screen = <PreAuth />;
+      break;
+    case 'unreachable':
+      screen = <Unreachable />;
       break;
     case 'onboarding':
       // A successful Plaid link re-checks onboarding state and routes onward.
@@ -107,6 +144,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+  },
+  unreachableLine: {
+    marginTop: spacing.md,
+    maxWidth: 320,
+  },
+  unreachableAction: {
+    marginTop: spacing.xxl,
   },
   phase: {
     flex: 1,

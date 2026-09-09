@@ -46,9 +46,11 @@ export const setSessionToken = (token: string | null) => {
 
 // Contract rule: 401 means the session token is missing/expired — the app routes
 // to sign-in. src/auth/session registers the handler (a callback avoids an
-// api → auth → api import cycle); the ApiError still propagates to the caller.
-let onUnauthorized: (() => void) | null = null;
-export const setOnUnauthorized = (handler: (() => void) | null) => {
+// api → auth → api import cycle); it receives the ApiError so it can tell a
+// deleted account (code 'account_deleted') from plain expiry. The ApiError still
+// propagates to the caller.
+let onUnauthorized: ((error: ApiError) => void) | null = null;
+export const setOnUnauthorized = (handler: ((error: ApiError) => void) | null) => {
   onUnauthorized = handler;
 };
 
@@ -71,11 +73,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (!res.ok) {
-    if (res.status === 401) onUnauthorized?.();
     // Prefer the backend's voiced error; fall back to a plain one.
     const fallback = `Request to ${path} failed (${res.status}).`;
     const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;
-    throw new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
+    const error = new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
+    if (res.status === 401) onUnauthorized?.(error);
+    throw error;
   }
   // 204 (account deletion) has no body by contract.
   if (res.status === 204) return undefined as T;

@@ -18,17 +18,20 @@ import { GoogleSignInButton, GOOGLE_ENABLED } from '../auth/GoogleSignInButton';
 
 export function SignInScreen() {
   const insets = useSafeAreaInsets();
-  const { signIn } = useSession();
-  const [error, setError] = useState<string | null>(null);
+  const { signIn, signedOutNotice } = useSession();
+  // A local attempt's failure wins; otherwise say why the user was signed out
+  // (a deleted account) instead of greeting them with silence.
+  const [attemptError, setAttemptError] = useState<string | null>(null);
+  const error = attemptError ?? signedOutNotice;
 
   const handlePress = async () => {
-    setError(null);
+    setAttemptError(null);
     try {
       await signIn();
     } catch (e) {
       const code = (e as { code?: string })?.code;
       if (code === APPLE_CANCELED) return; // user backed out — not an error
-      setError("Couldn't sign in. Check your connection and try again.");
+      setAttemptError("Couldn't sign in. Check your connection and try again.");
     }
   };
 
@@ -73,7 +76,7 @@ export function SignInScreen() {
               directly below Apple when its auth lands — same height, same radius,
               same gap. Never fake a provider before it works. */}
           <View style={styles.providers}>
-            {GOOGLE_ENABLED ? <GoogleSignInButton onError={setError} /> : null}
+            {GOOGLE_ENABLED ? <GoogleSignInButton onError={setAttemptError} /> : null}
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}

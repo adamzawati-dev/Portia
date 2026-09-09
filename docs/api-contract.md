@@ -21,7 +21,10 @@ implements it (`src/api/mock.ts`), so both sides move in parallel.
 - **Errors.** Non-2xx returns `{ error: { code, message } }`. `message` is
   user-safe and in Portia's voice (plain, never vague about what happened or how
   to fix it). `401` means the session token is missing/expired — app routes to
-  sign-in.
+  sign-in. A `401` with `code: 'account_deleted'` means the account behind a
+  still-valid token was deleted; the app signs out and says so on the sign-in
+  screen. Any other failure of `GET /me` at launch (offline, 5xx, timeout) is NOT
+  a sign-out: the app keeps the session and shows a retry screen.
 
 ## Base URL
 

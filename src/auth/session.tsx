@@ -10,8 +10,9 @@
 // downstream of auth (bank link, diagnostic) still resolves off the mock `GET /me`
 // for now — this phase is auth-only and additive.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
-import { api, setOnUnauthorized, setSessionToken } from '../api/client';
+import { api, ApiError, setOnUnauthorized, setSessionToken } from '../api/client';
 import { clearAccountsCache } from '../api/accountsCache';
 import { supabase } from './supabase';
 import { signInWithApple } from './apple';
@@ -19,12 +20,23 @@ import { signInWithApple } from './apple';
 export type SessionPhase =
   | 'loading' // hydrating the session / resolving where the user goes
   | 'signedOut' // no session -> pre-auth onboarding + SignInScreen
+  | 'unreachable' // signed in, but /me failed for a reason other than 401 -> retry screen
   | 'onboarding' // signed in, no bank linked yet -> BankConnectScreen
   | 'diagnostic' // linked, day-one Diagnostic not yet seen -> DiagnosticScreen
   | 'ready'; // signed in + linked + past the Diagnostic -> the app (MainTabs)
 
+// The backend's 401 code for an account that was deleted (its Supabase identity
+// may outlive the deletion by minutes while the auth user is removed). The user
+// gets told, instead of a silent bounce to sign-in.
+const ACCOUNT_DELETED_CODE = 'account_deleted';
+const ACCOUNT_DELETED_NOTICE =
+  'That account was deleted. Sign in again in a few minutes to start fresh.';
+
 type SessionValue = {
   phase: SessionPhase;
+  /** Why the last sign-out was forced (e.g. the account was deleted); null otherwise.
+   *  SignInScreen shows it in its error row. Cleared on the next sign-in attempt. */
+  signedOutNotice: string | null;
   /** Run the Apple flow; the resulting Supabase session drives routing. */
   signIn: () => Promise<void>;
   /** Re-fetch onboarding state (e.g. just after a bank links). */
@@ -44,6 +56,7 @@ export function useSession(): SessionValue {
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<SessionPhase>('loading');
+  const [signedOutNotice, setSignedOutNotice] = useState<string | null>(null);
 
   // The one place that maps backend onboarding state -> a destination.
   const resolveRoute = useCallback(async () => {
@@ -74,23 +87,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Map a Supabase session -> a phase. No session drops to the pre-auth flow; a
   // session primes the API client's bearer token, then onboarding state decides
-  // the destination. A failed /me drops to signed-out rather than trapping a spinner.
+  // the destination. Only a 401 ends the session (the API client's handler signs
+  // out); any other /me failure -- offline, a backend 5xx, a timeout -- keeps the
+  // Supabase session and parks on the 'unreachable' screen, which retries. Signing
+  // out on those threw a valid session away for a network blip, and offline the
+  // sign-out itself failed silently and trapped the user on the Holding frame.
   const routeFromSession = useCallback(
     async (session: Session | null) => {
       if (!session) {
         setSessionToken(null);
-        // Every sign-out path lands here (manual, 401 backstop, failed /me):
+        // Every sign-out path lands here (manual, 401 backstop, deleted account):
         // drop the cached balances so one user's figures never greet another.
         clearAccountsCache();
         setPhase('signedOut');
         return;
       }
       setSessionToken(session.access_token);
+      setSignedOutNotice(null); // a new session makes any forced-sign-out reason stale
       setPhase('loading');
       try {
         await routeFromMe();
-      } catch {
-        await supabase.auth.signOut(); // emits SIGNED_OUT -> routeFromSession(null)
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) return; // onUnauthorized signs out
+        setPhase('unreachable');
       }
     },
     [routeFromMe],
@@ -98,11 +117,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // A 401 from any endpoint means the session is dead server-side (contract rule):
   // sign out, which routes to sign-in via the auth listener. Supabase auto-refresh
-  // makes this rare; it's the backstop, not the normal expiry path.
+  // makes this rare; it's the backstop, not the normal expiry path. A deleted
+  // account is the one 401 worth a sentence on the sign-in screen.
   useEffect(() => {
-    setOnUnauthorized(() => void supabase.auth.signOut());
+    setOnUnauthorized((error) => {
+      if (error.code === ACCOUNT_DELETED_CODE) setSignedOutNotice(ACCOUNT_DELETED_NOTICE);
+      void supabase.auth.signOut();
+    });
     return () => setOnUnauthorized(null);
   }, []);
+
+  // While unreachable, coming back to the foreground is the natural retry moment
+  // (the user toggled airplane mode, walked out of the tunnel). A failure here just
+  // stays on the retry screen.
+  useEffect(() => {
+    if (phase !== 'unreachable') return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') routeFromMe().catch(() => {});
+    });
+    return () => sub.remove();
+  }, [phase, routeFromMe]);
 
   // Launch + every auth change flow through one listener. onAuthStateChange emits
   // INITIAL_SESSION on subscribe, so this also hydrates the persisted session on
@@ -143,18 +177,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // into a phase. We rethrow so SignInScreen can surface a cancel/error; on success
   // the screen stays put for the blink until the listener routes onward.
   const signIn = useCallback(async () => {
+    setSignedOutNotice(null);
     await signInWithApple();
   }, []);
 
   const completeDiagnostic = useCallback(() => setPhase('ready'), []);
 
   const signOut = useCallback(async () => {
+    setSignedOutNotice(null);
     await supabase.auth.signOut(); // listener routes to 'signedOut'
   }, []);
 
   return (
     <SessionContext.Provider
-      value={{ phase, signIn, refresh: routeFromMe, completeDiagnostic, signOut }}
+      value={{ phase, signedOutNotice, signIn, refresh: routeFromMe, completeDiagnostic, signOut }}
     >
       {children}
     </SessionContext.Provider>

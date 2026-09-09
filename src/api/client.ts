@@ -4,6 +4,7 @@
 // screen imports `api` and the contract types from here — nothing else knows
 // whether the seam is live. The app does no arithmetic; it renders what arrives.
 import { BASE_URL, USE_MOCK } from './config';
+import { supabase } from '../auth/supabase';
 import type {
   AccountsOverview,
   ApiErrorBody,
@@ -39,10 +40,36 @@ export interface PortiaApi {
 // The bearer token attached to backend requests. The Supabase session is the
 // source of truth (persisted in the Keychain by supabase-js); src/auth/session
 // primes this with the access token on every auth change and clears it on sign-out.
+// Each request re-reads the session first (see freshToken); this cache is the
+// fallback when that read throws.
 let sessionToken: string | null = null;
 export const setSessionToken = (token: string | null) => {
   sessionToken = token;
 };
+
+// supabase.auth.getSession() refreshes a token that is expired (or about to be)
+// before returning it. Auto-refresh is paused while the app is backgrounded, so
+// the first request after a long background otherwise went out with the cached,
+// expired bearer, got a 401, and signed the user out for nothing.
+async function freshToken(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? sessionToken;
+  } catch {
+    return sessionToken;
+  }
+}
+
+// Per-request budgets. Nothing bounded a request before: iOS only enforces an
+// idle timeout (~60s), so a hung backend left the loading state hanging, and a
+// chat turn (up to several model calls plus tool rounds, sent as plain JSON with
+// no bytes on the wire until the reply) could be cut off by that idle timeout
+// after the server had already persisted the turn.
+const DEFAULT_TIMEOUT_MS = 20_000;
+const CHAT_TIMEOUT_MS = 120_000;
+const timeoutFor = (method: string, path: string): number =>
+  method === 'POST' && path === '/chat' ? CHAT_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+const TIMEOUT_MESSAGE = "Couldn't reach Portia in time. Check your connection and try again.";
 
 // Contract rule: 401 means the session token is missing/expired — the app routes
 // to sign-in. src/auth/session registers the handler (a callback avoids an
@@ -63,26 +90,41 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutFor(method, path));
+  try {
+    const token = await freshToken();
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    // Prefer the backend's voiced error; fall back to a plain one.
-    const fallback = `Request to ${path} failed (${res.status}).`;
-    const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;
-    const error = new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
-    if (res.status === 401) onUnauthorized?.(error);
-    throw error;
+    if (!res.ok) {
+      // Prefer the backend's voiced error; fall back to a plain one.
+      const fallback = `Request to ${path} failed (${res.status}).`;
+      const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;
+      const error = new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
+      if (res.status === 401) onUnauthorized?.(error);
+      throw error;
+    }
+    // 204 (account deletion) has no body by contract; an empty 2xx body is
+    // tolerated the same way rather than failing on JSON.parse.
+    if (res.status === 204) return undefined as T;
+    const text = await res.text();
+    return (text ? JSON.parse(text) : undefined) as T;
+  } catch (e) {
+    // The abort surfaces as a generic error from fetch/body reads; the signal
+    // says whether it was ours. Voiced, status 0: no response ever arrived.
+    if (controller.signal.aborted) throw new ApiError('timeout', TIMEOUT_MESSAGE, 0);
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  // 204 (account deletion) has no body by contract.
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
 }
 
 const httpApi: PortiaApi = {

@@ -38,6 +38,10 @@ const BEAT_COUNT = 3;
 const WORD_MS = 110; // ~9 words/sec -- speech pace, not teleprompter
 const SENTENCE_PAUSE_MS = 400;
 const THINK_STEP_MS = 900;
+// The statements reserve a fixed 38pt leading (so the word-reveal never reflows);
+// past this Dynamic Type scale the lines would collide. Callers can only lower
+// AppText's cap, never raise it.
+const STATEMENT_MAX_SCALE = 1.35;
 
 // The demo exchange in beat two. Illustrative (the overline says so); the step
 // labels are the REAL progress strings the backend streams while she works.
@@ -128,7 +132,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
           />
           <Press
             onPress={() => goTo(null)}
-            hitSlop={12}
+            hitSlop={14}
             accessibilityRole="button"
             accessibilityLabel="Skip the intro"
           >
@@ -193,10 +197,14 @@ function BeatSpeak({ reduced }: { reduced: boolean }) {
   return (
     <View>
       <Animated.View style={[styles.rule, ruleStyle]} />
-      <AppText variant="display" style={styles.statement}>
+      <AppText variant="display" style={styles.statement} maxFontSizeMultiplier={STATEMENT_MAX_SCALE}>
         {line1.text}
       </AppText>
-      <AppText variant="display" style={[styles.statement, styles.line2]}>
+      <AppText
+        variant="display"
+        style={[styles.statement, styles.line2]}
+        maxFontSizeMultiplier={STATEMENT_MAX_SCALE}
+      >
         {line2.text}
       </AppText>
     </View>
@@ -299,7 +307,7 @@ function BeatTrust() {
   return (
     <View>
       <View style={styles.rule} />
-      <AppText variant="display" style={styles.statement}>
+      <AppText variant="display" style={styles.statement} maxFontSizeMultiplier={STATEMENT_MAX_SCALE}>
         Read-only. I never move a cent, and I never guess a number. Everything I tell you is real.
       </AppText>
     </View>

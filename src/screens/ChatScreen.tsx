@@ -519,7 +519,7 @@ export function ChatScreen() {
                   </AppText>
                   <Press
                     onPress={retryHistory}
-                    hitSlop={8}
+                    hitSlop={14}
                     accessibilityRole="button"
                     accessibilityLabel="Retry loading the conversation"
                   >
@@ -540,6 +540,7 @@ export function ChatScreen() {
                 >
                   <Press
                     onPress={() => handleSend(prompt)}
+                    hitSlop={spacing.xs}
                     accessibilityRole="button"
                     accessibilityLabel={`Ask: ${prompt}`}
                     style={styles.chip}
@@ -599,6 +600,7 @@ export function ChatScreen() {
             <View style={styles.pillWrap} pointerEvents="box-none">
               <Press
                 onPress={jumpToLatest}
+                hitSlop={spacing.sm}
                 accessibilityRole="button"
                 accessibilityLabel="Jump to latest"
               >

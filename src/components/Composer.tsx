@@ -109,6 +109,7 @@ export function Composer({
             {streaming ? (
               <Press
                 onPress={onStop}
+                hitSlop={spacing.xs}
                 accessibilityRole="button"
                 accessibilityLabel="Stop generating"
                 style={styles.send}
@@ -119,6 +120,7 @@ export function Composer({
               <Press
                 onPress={submit}
                 disabled={!canSend}
+                hitSlop={spacing.xs}
                 accessibilityRole="button"
                 accessibilityLabel="Send message"
                 style={styles.send}

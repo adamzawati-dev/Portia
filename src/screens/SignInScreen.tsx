@@ -62,7 +62,7 @@ export function SignInScreen() {
               </AppText>
               <Press
                 onPress={handlePress}
-                hitSlop={8}
+                hitSlop={14}
                 accessibilityRole="button"
                 accessibilityLabel="Try signing in again"
               >

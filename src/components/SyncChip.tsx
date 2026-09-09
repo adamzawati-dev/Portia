@@ -65,7 +65,11 @@ export function SyncChip({ status, onOpenReveal }: { status: SyncStatus; onOpenR
         style={[styles.chip, ready && styles.chipReady]}
       >
         {ready && <View style={styles.dot} />}
-        <AppText variant="caption" color={ready ? palette.signature : palette.textSecondary}>
+        <AppText
+          variant="caption"
+          color={ready ? palette.signature : palette.textSecondary}
+          maxFontSizeMultiplier={1.35}
+        >
           {label}
         </AppText>
       </Press>

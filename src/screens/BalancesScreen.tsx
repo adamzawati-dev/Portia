@@ -330,6 +330,7 @@ export function BalancesScreen() {
                   setError(null);
                   load(false);
                 }}
+                hitSlop={spacing.xs}
                 accessibilityRole="button"
                 accessibilityLabel="Try again"
                 style={styles.tryAgain}

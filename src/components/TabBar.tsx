@@ -90,13 +90,13 @@ function TabItem({
     >
       <Animated.View style={[styles.layer, inactiveLayer]}>
         <SymbolView name={tab.icon} size={16} tintColor={inactiveColor} weight="regular" />
-        <AppText variant="caption" color={inactiveColor}>
+        <AppText variant="caption" color={inactiveColor} maxFontSizeMultiplier={1.35}>
           {tab.label}
         </AppText>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.layer, activeLayer]}>
         <SymbolView name={tab.icon} size={16} tintColor={palette.signature} weight="semibold" />
-        <AppText variant="caption" color={palette.signature}>
+        <AppText variant="caption" color={palette.signature} maxFontSizeMultiplier={1.35}>
           {tab.label}
         </AppText>
       </Animated.View>

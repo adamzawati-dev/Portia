@@ -247,7 +247,7 @@ function SkipButton({ onSkip }: { onSkip: () => void }) {
   return (
     <Press
       onPress={onSkip}
-      hitSlop={12}
+      hitSlop={14}
       accessibilityRole="button"
       accessibilityLabel="Skip to the app"
       style={[styles.skip, { top: insets.top + spacing.md }]}
@@ -292,7 +292,12 @@ function DiagnosticCard({ segment, motion }: { segment: DiagnosticSegment; motio
   return (
     <View style={styles.cardWrap}>
       <Animated.View style={labelRise}>
-        <AppText variant="overline" color={palette.textTertiary} style={styles.label}>
+        <AppText
+          variant="overline"
+          color={palette.textTertiary}
+          style={styles.label}
+          maxFontSizeMultiplier={1.35}
+        >
           {segment.label}
         </AppText>
       </Animated.View>
@@ -304,7 +309,12 @@ function DiagnosticCard({ segment, motion }: { segment: DiagnosticSegment; motio
       ) : null}
 
       <Animated.View style={captionRise}>
-        <AppText variant="title" color={palette.textSecondary} style={styles.caption}>
+        <AppText
+          variant="title"
+          color={palette.textSecondary}
+          style={styles.caption}
+          maxFontSizeMultiplier={1.35}
+        >
           {segment.caption}
         </AppText>
       </Animated.View>

@@ -128,7 +128,7 @@ export const MessageRow = React.memo(function MessageRow({
       {message.failed ? (
         <Press
           onPress={() => onRetry?.(message)}
-          hitSlop={8}
+          hitSlop={14}
           accessibilityRole="button"
           accessibilityLabel="Retry sending this message"
         >

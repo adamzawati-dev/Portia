@@ -41,11 +41,17 @@ export function useCountUp(target: number, durationMs: number, enabled: boolean)
   }, [target, durationMs, enabled, progress]);
 
   useAnimatedReaction(
-    () => Math.round(progress.value),
+    () => {
+      const v = progress.value;
+      // The final frame lands exactly on target. Pass it through unrounded: this
+      // reaction can run AFTER the completion callback, and a rounded last write
+      // would leave the figure at rest without its cents ($12,404.00 for 12404.12).
+      return v === target ? v : Math.round(v);
+    },
     (current, previous) => {
       if (current !== previous) runOnJS(setValue)(current);
     },
-    [],
+    [target],
   );
 
   return value;

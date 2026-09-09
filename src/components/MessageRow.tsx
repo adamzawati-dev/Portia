@@ -4,9 +4,10 @@
 // Assistant turns are full-width flat prose on the Dusk background. Each opens
 // with a 2px apricot rule that DRAWS in left-to-right, then the text fades up.
 // When a reply carries a dollar figure, the key one renders as an
-// Overview-hero line (count-up while live). Receipts — hairline uppercase
-// chips naming the true sources — stagger in under the finished reply, and a
-// barely-there divider closes each turn so long threads keep rhythm.
+// Overview-hero line (count-up while live). A muted provenance line names the
+// institutions whose data informed THIS reply (message.sources, when the
+// server sent it), and a barely-there divider closes each turn so long threads
+// keep rhythm.
 // User turns are compact right-aligned chips on a subtle flat tint. Never glass.
 //
 // While Portia works, ThinkingSteps is one glass-edged strip: a pulsing
@@ -37,14 +38,12 @@ import { Press } from './Press';
 import { MessageProse, extractHero } from '../chat/markdown';
 import { Message } from '../chat/types';
 import { useMotion } from '../hooks/useMotion';
-import { getAccountsCacheSync } from '../api/accountsCache';
 
 // Provenance: one quiet line naming where the figures come from — no pills,
-// no borders, just muted metadata ("American Express · Wells Fargo"). The
-// contract's replies carry no per-message source list yet, so this names the
-// linked institutions from the accounts cache — real names, only what's true.
-function Provenance() {
-  const names = getAccountsCacheSync()?.data.institutions.map((i) => i.institutionName) ?? [];
+// no borders, just muted metadata ("American Express · Wells Fargo"). Only
+// the institutions the server says informed this reply; a reply that read no
+// financial data carries none and shows nothing.
+function Provenance({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   return (
     <AppText
@@ -58,7 +57,15 @@ function Provenance() {
   );
 }
 
-function AssistantTurn({ text, live = false }: { text: string; live?: boolean }) {
+function AssistantTurn({
+  text,
+  sources,
+  live = false,
+}: {
+  text: string;
+  sources?: string[];
+  live?: boolean;
+}) {
   const { reduced, durations } = useMotion();
   const hero = extractHero(text);
 
@@ -88,7 +95,7 @@ function AssistantTurn({ text, live = false }: { text: string; live?: boolean })
           <FinancialCallout amount={hero.amount} label={hero.label} live={live} style={styles.hero} />
         ) : null}
         <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
-        {live ? null : <Provenance />}
+        {live || !sources ? null : <Provenance names={sources} />}
       </Animated.View>
       {/* Turn divider: barely-there rhythm for long threads. */}
       {live ? null : <View style={styles.turnDivider} />}
@@ -104,7 +111,7 @@ export const MessageRow = React.memo(function MessageRow({
   onRetry?: (message: Message) => void;
 }) {
   if (message.sender === 'portia') {
-    return <AssistantTurn text={message.text} />;
+    return <AssistantTurn text={message.text} sources={message.sources} />;
   }
   return (
     <View style={styles.userRow}>

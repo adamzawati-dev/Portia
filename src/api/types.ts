@@ -89,9 +89,6 @@ export type AccountsOverview = {
 // through the existing MessageBubble without mapping.
 export type ChatMessage = Message & {
   createdAt: string;
-  /** Institutions whose data informed this reply; present only when the turn read
-   *  financial data. Replaces the all-institutions line when present. */
-  sources?: string[];
 };
 
 export type ChatHistory = { messages: ChatMessage[]; nextCursor?: string };

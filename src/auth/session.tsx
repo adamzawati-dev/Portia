@@ -9,7 +9,7 @@
 // and restores it on launch, so a returning user lands signed in. Everything
 // downstream of auth (bank link, diagnostic) still resolves off the mock `GET /me`
 // for now — this phase is auth-only and additive.
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { api, setOnUnauthorized, setSessionToken } from '../api/client';
 import { clearAccountsCache } from '../api/accountsCache';
@@ -46,7 +46,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<SessionPhase>('loading');
 
   // The one place that maps backend onboarding state -> a destination.
-  const routeFromMe = useCallback(async () => {
+  const resolveRoute = useCallback(async () => {
     const me = await api.getMe();
     const { hasLinkedBank, diagnosticState } = me.onboarding;
     if (!hasLinkedBank) {
@@ -60,6 +60,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setPhase('ready');
     }
   }, []);
+
+  // Routes run one at a time, in call order. Two overlapping /me round-trips
+  // (launch + a bank-link refresh, say) could otherwise resolve out of order and
+  // leave the phase set by the STALER response. Each caller still gets its own
+  // result: a rejection propagates to the caller but never blocks the next route.
+  const routeChain = useRef<Promise<void>>(Promise.resolve());
+  const routeFromMe = useCallback(() => {
+    const run = routeChain.current.then(resolveRoute, resolveRoute);
+    routeChain.current = run.catch(() => {});
+    return run;
+  }, [resolveRoute]);
 
   // Map a Supabase session -> a phase. No session drops to the pre-auth flow; a
   // session primes the API client's bearer token, then onboarding state decides
@@ -96,12 +107,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Launch + every auth change flow through one listener. onAuthStateChange emits
   // INITIAL_SESSION on subscribe, so this also hydrates the persisted session on
   // launch — no separate getSession() call (which would double-route).
+  //
+  // Only the events that change WHO is signed in re-route. TOKEN_REFRESHED fires
+  // on every silent refresh (hourly) and USER_UPDATED after the first-sign-in
+  // profile write; routing on those set the phase back to 'loading', which
+  // remounts the whole tree mid-use (Holding flash, refetches, a Diagnostic
+  // cut off). They only need the new bearer.
   useEffect(() => {
     let active = true;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) void routeFromSession(session);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      switch (event) {
+        case 'TOKEN_REFRESHED':
+        case 'USER_UPDATED':
+          if (session) setSessionToken(session.access_token);
+          return;
+        case 'INITIAL_SESSION':
+        case 'SIGNED_IN':
+        case 'SIGNED_OUT':
+          void routeFromSession(session);
+          return;
+        default:
+          return;
+      }
     });
     return () => {
       active = false;

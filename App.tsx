@@ -10,6 +10,8 @@ import { palette, spacing } from './theme/dusk';
 import { Background } from './src/components/Background';
 import { AppText } from './src/components/AppText';
 import { PrimaryButton } from './src/components/PrimaryButton';
+import { Press } from './src/components/Press';
+import { clearAccountsCache } from './src/api/accountsCache';
 import { MainTabs } from './src/screens/MainTabs';
 import { PreAuth } from './src/screens/PreAuth';
 import { SessionProvider, useSession } from './src/auth/session';
@@ -119,6 +121,60 @@ function Root() {
   );
 }
 
+// A render-time throw anywhere below (a corrupt Keychain accounts cache read
+// synchronously into Overview, say) otherwise takes the whole app down to the
+// native crash screen, and repeats on every launch. The boundary shows one line
+// on the environment and a Reload that clears that cache and remounts the tree.
+type BoundaryState = { crashed: boolean; generation: number };
+
+class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, BoundaryState> {
+  state: BoundaryState = { crashed: false, generation: 0 };
+
+  static getDerivedStateFromError(): Partial<BoundaryState> {
+    return { crashed: true };
+  }
+
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    console.error('[app] render crashed', error, info.componentStack);
+  }
+
+  reload = () => {
+    clearAccountsCache(); // a poisoned cache must not crash the next mount too
+    this.setState((s) => ({ crashed: false, generation: s.generation + 1 }));
+  };
+
+  render() {
+    if (this.state.crashed) return <Crashed onReload={this.reload} />;
+    return <React.Fragment key={this.state.generation}>{this.props.children}</React.Fragment>;
+  }
+}
+
+function Crashed({ onReload }: { onReload: () => void }) {
+  return (
+    <Background>
+      <View style={styles.holding}>
+        <AppText variant="display" color={palette.textPrimary}>
+          Portia
+        </AppText>
+        <AppText variant="body" color={palette.textSecondary} style={styles.unreachableLine}>
+          Something broke on my end. Reload to pick up where you left off.
+        </AppText>
+        <Press
+          commit
+          onPress={onReload}
+          accessibilityRole="button"
+          accessibilityLabel="Reload"
+          style={styles.reload}
+        >
+          <AppText variant="title" color={palette.signature}>
+            Reload
+          </AppText>
+        </Press>
+      </View>
+    </Background>
+  );
+}
+
 export default function App() {
   const [fontsLoaded] = useFonts(fontAssets);
 
@@ -128,9 +184,11 @@ export default function App() {
         <StatusBar style="light" />
         {/* Bare environment while fonts load — avoids a flash of the wrong font. */}
         {fontsLoaded ? (
-          <SessionProvider>
-            <Root />
-          </SessionProvider>
+          <RootErrorBoundary>
+            <SessionProvider>
+              <Root />
+            </SessionProvider>
+          </RootErrorBoundary>
         ) : (
           <Background />
         )}
@@ -151,6 +209,11 @@ const styles = StyleSheet.create({
   },
   unreachableAction: {
     marginTop: spacing.xxl,
+  },
+  reload: {
+    marginTop: spacing.xxl,
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
   },
   phase: {
     flex: 1,

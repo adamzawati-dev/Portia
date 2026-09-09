@@ -299,6 +299,11 @@ export function ChatScreen() {
     (text: string) => {
       // The user's own turn shows immediately, whether it goes out now or queues.
       const id = appendUserRow(text);
+      // A user's own send is the one case where the list may move under them:
+      // bring the new turn into view instead of leaving it behind the pill.
+      nearBottom.current = true;
+      setShowPill(false);
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
       if (pendingRef.current) {
         sendQueue.current.push({ id, text }); // strict order: dispatched after this reply
         return;

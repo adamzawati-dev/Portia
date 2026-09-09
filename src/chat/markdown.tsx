@@ -14,10 +14,15 @@ import { glass, innerRadius, palette, radius, spacing } from '../../theme/dusk';
 import { fontFamilyForWeight } from '../../theme/fonts';
 import { AppText } from '../components/AppText';
 
-// A dollar figure exactly as the backend wrote it (with optional cents).
-const AMOUNT = /\$[\d,]+(?:\.\d{1,2})?/;
-const AMOUNT_SPLIT = /(\$[\d,]+(?:\.\d{1,2})?)/g;
-const AMOUNT_EXACT = /^\$[\d,]+(?:\.\d{1,2})?$/; // whole-piece check (no /g state)
+// A dollar figure exactly as the backend wrote it (optional cents, optional
+// K/M suffix: "$7K", "$1.2K", "$10M"). The suffix stays inside the amount span
+// so a figure never reads as "$7 K"; the lookahead keeps "$5Kish" whole prose.
+const AMOUNT = /\$[\d,]+(?:\.\d{1,2})?[KkMm]?(?!\w)/;
+const AMOUNT_SPLIT = /(\$[\d,]+(?:\.\d{1,2})?[KkMm]?(?!\w))/g;
+const AMOUNT_EXACT = /^\$[\d,]+(?:\.\d{1,2})?[KkMm]?$/; // whole-piece check (no /g state)
+// A suffixed figure is prose, never a <Money> hero: the app does no arithmetic,
+// so "$7K" is not expanded to 7,000 (and never rendered as $7).
+const SUFFIXED = /[KkMm]$/;
 
 /** Close any construct an incomplete stream left open. Order matters: balance
  *  fences first so inline counting only sees prose. */
@@ -69,7 +74,10 @@ export function extractHero(text: string): HeroFigure | null {
       .trim();
     candidates.push({ amount: m[0], label: label || null, liftedLine: line });
   }
-  return candidates.length === 1 ? candidates[0] : null;
+  // A suffixed line still counts as a figure line (two figure lines = a
+  // breakdown, no callout) but is itself rendered inline, never lifted.
+  if (candidates.length !== 1 || SUFFIXED.test(candidates[0].amount)) return null;
+  return candidates[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -147,13 +155,25 @@ export function MessageProse({
   text,
   color,
   omitLine,
+  live = false,
 }: {
   text: string;
   color: string;
   /** Exact line lifted into the hero block — removed from the prose flow. */
   omitLine?: string | null;
+  /** The text is still revealing: the lifted line is omitted while it is only
+   *  partially on screen too (the hero already shows its figure), so the figure
+   *  never appears twice mid-reveal. The streaming caret is ignored. */
+  live?: boolean;
 }) {
   const blocks = parseBlocks(stabilize(text));
+  const omitted = (line: string): boolean => {
+    if (omitLine == null) return false;
+    if (line === omitLine) return true;
+    if (!live) return false;
+    const bare = line.replace(/▍$/, '');
+    return bare.length > 0 && omitLine.startsWith(bare);
+  };
   return (
     <>
       {blocks.map((b, i) =>
@@ -167,7 +187,7 @@ export function MessageProse({
           <View key={i} style={i > 0 ? styles.blockGap : null}>
             {b.content
               .split('\n')
-              .filter((line) => !(omitLine != null && line === omitLine))
+              .filter((line) => !omitted(line))
               .map((line, l) =>
                 line.trim().length === 0 ? (
                   <View key={l} style={styles.lineBreak} />

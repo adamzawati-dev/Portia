@@ -16,7 +16,7 @@
 // step labels for this turn (one per tool as it starts), rendered verbatim —
 // before the first arrives, one neutral line. Nothing here claims a bank was
 // read unless the server said so.
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,7 +35,7 @@ import { haptic } from '../../theme/haptics';
 import { AppText } from './AppText';
 import { FinancialCallout } from './FinancialCallout';
 import { Press } from './Press';
-import { MessageProse, extractHero } from '../chat/markdown';
+import { HeroFigure, MessageProse, extractHero } from '../chat/markdown';
 import { Message } from '../chat/types';
 import { useMotion } from '../hooks/useMotion';
 
@@ -61,13 +61,18 @@ function AssistantTurn({
   text,
   sources,
   live = false,
+  hero: heroProp,
 }: {
   text: string;
   sources?: string[];
   live?: boolean;
+  /** Live rows: the hero decided ONCE from the complete reply (a partial line
+   *  can look like a callout for a few frames, then stop). Committed rows
+   *  derive it from their own text. */
+  hero?: HeroFigure | null;
 }) {
   const { reduced, durations } = useMotion();
-  const hero = extractHero(text);
+  const hero = useMemo(() => (heroProp !== undefined ? heroProp : extractHero(text)), [heroProp, text]);
 
   // Entrance (live turns only): the rule draws left-to-right, then the body
   // fades up 4px. Committed/history rows render at rest.
@@ -94,7 +99,7 @@ function AssistantTurn({
         {hero ? (
           <FinancialCallout amount={hero.amount} label={hero.label} live={live} style={styles.hero} />
         ) : null}
-        <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} />
+        <MessageProse text={text} color={palette.textPrimary} omitLine={hero?.liftedLine} live={live} />
         {live || !sources ? null : <Provenance names={sources} />}
       </Animated.View>
       {/* Turn divider: barely-there rhythm for long threads. */}
@@ -136,9 +141,18 @@ export const MessageRow = React.memo(function MessageRow({
   );
 });
 
-/** The reply-in-flight: same layout as a finished assistant turn, plus caret. */
-export function StreamingRow({ text, caretOn }: { text: string; caretOn: boolean }) {
-  return <AssistantTurn text={caretOn ? `${text}▍` : text} live />;
+/** The reply-in-flight: same layout as a finished assistant turn, plus caret.
+ *  `hero` is decided by the caller from the complete reply, not per frame. */
+export function StreamingRow({
+  text,
+  caretOn,
+  hero,
+}: {
+  text: string;
+  caretOn: boolean;
+  hero: HeroFigure | null;
+}) {
+  return <AssistantTurn text={caretOn ? `${text}▍` : text} live hero={hero} />;
 }
 
 // ---------------------------------------------------------------------------

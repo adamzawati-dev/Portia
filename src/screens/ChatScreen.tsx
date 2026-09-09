@@ -49,6 +49,7 @@ import { ChatSkeleton } from '../components/Skeleton';
 import { TAB_BAR_SPACE } from '../components/TabBar';
 import { Message } from '../chat/types';
 import { CHAT_STREAMING, streamText, StreamHandle } from '../chat/stream';
+import { HeroFigure, extractHero } from '../chat/markdown';
 import { useMotion } from '../hooks/useMotion';
 import { api, ApiError, StreamUnavailableError } from '../api/client';
 import type { ChatReply, ChatStreamDone } from '../api/client';
@@ -85,7 +86,13 @@ const SUGGESTED_PROMPTS = [
 ];
 
 // `steps` are the server's own progress labels for this turn, in order.
-type Pending = { phase: 'waiting' | 'streaming'; text: string; steps: string[] };
+// `hero` is decided once from the complete reply before the reveal starts.
+type Pending = {
+  phase: 'waiting' | 'streaming';
+  text: string;
+  steps: string[];
+  hero: HeroFigure | null;
+};
 
 /** Splice a reply in directly after the user turn that triggered it. */
 function insertAfterAnchor(
@@ -239,7 +246,7 @@ export function ChatScreen() {
       activeAnchor.current = anchorId;
       const controller = new AbortController();
       abortRef.current = controller;
-      const waiting: Pending = { phase: 'waiting', text: '', steps: [] };
+      const waiting: Pending = { phase: 'waiting', text: '', steps: [], hero: null };
       pendingRef.current = waiting; // eager: a send in the same tick must queue
       setPending(waiting);
       firstTokenSeen.current = false;
@@ -260,7 +267,12 @@ export function ChatScreen() {
             {
               onStep: (label) => {
                 if (!current()) return;
-                setPending((p) => ({ phase: 'waiting', text: '', steps: [...(p?.steps ?? []), label] }));
+                setPending((p) => ({
+                  phase: 'waiting',
+                  text: '',
+                  steps: [...(p?.steps ?? []), label],
+                  hero: null,
+                }));
               },
               onChunk: (piece) => {
                 chunks += piece;
@@ -291,6 +303,9 @@ export function ChatScreen() {
             (m) => !(m.sender === 'user' && m.text === text),
           );
           const full = incoming.map((m) => m.text).join('\n\n');
+          // The callout is decided from the whole reply, once — never from a
+          // partial reveal frame.
+          const hero = extractHero(full);
           streamHandle.current = streamText(full, {
             instant: reduced,
             onChunk: (soFar) => {
@@ -299,7 +314,7 @@ export function ChatScreen() {
                 firstTokenSeen.current = true;
                 console.log(`[chat] first token in ${Date.now() - sentAt.current}ms`);
               }
-              setPending({ phase: 'streaming', text: soFar, steps: [] });
+              setPending({ phase: 'streaming', text: soFar, steps: [], hero });
             },
             onDone: () => {
               if (!current()) return;
@@ -422,7 +437,7 @@ export function ChatScreen() {
     pending.phase === 'waiting' ? (
       <ThinkingSteps steps={pending.steps} />
     ) : (
-      <StreamingRow text={pending.text} caretOn={caretOn} />
+      <StreamingRow text={pending.text} caretOn={caretOn} hero={pending.hero} />
     )
   ) : null;
 

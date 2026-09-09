@@ -84,7 +84,11 @@ const SUGGESTED_PROMPTS = [
 type Pending = { phase: 'waiting' | 'streaming'; text: string };
 
 /** Splice a reply in directly after the user turn that triggered it. */
-function insertAfterAnchor(prev: Message[] | null, anchorId: string, incoming: Message[]): Message[] {
+function insertAfterAnchor(
+  prev: Message[] | null,
+  anchorId: string | null,
+  incoming: Message[],
+): Message[] {
   const arr = [...(prev ?? [])];
   const i = arr.findIndex((m) => m.id === anchorId);
   arr.splice(i >= 0 ? i + 1 : arr.length, 0, ...incoming);
@@ -113,13 +117,13 @@ export function ChatScreen() {
   const messagesRef = useRef<Message[] | null>(null);
   messagesRef.current = messages;
   const streamHandle = useRef<StreamHandle | null>(null);
-  const canceled = useRef(false);
   const sentAt = useRef(0);
   const firstTokenSeen = useRef(false);
   const alive = useRef(true);
   const seedTries = useRef(0);
-  // Sends made while a reply is in flight, dispatched in order afterwards.
-  const sendQueue = useRef<string[]>([]);
+  // Sends made while a reply is in flight (already rendered as user rows),
+  // dispatched in order afterwards.
+  const sendQueue = useRef<{ id: string; text: string }[]>([]);
 
   const loadHistory = useCallback(() => {
     setHistoryFailed(false);
@@ -193,23 +197,49 @@ export function ChatScreen() {
     return () => clearInterval(t);
   }, [streamingNow, reduced]);
 
-  const dispatchRef = useRef<(text: string) => void>(() => {});
+  // Per-dispatch generation. Each send bumps it and captures its own value; a
+  // reply, chunk or failure lands only while its generation is still current,
+  // so Stop (which bumps it) truly ends a turn and a later send can never
+  // revive an earlier one. A shared boolean could: the next send reset it.
+  const dispatchGen = useRef(0);
+  // The optimistic row of the turn in flight -- what a stopped partial reply
+  // splices in after.
+  const activeAnchor = useRef<string | null>(null);
+
+  const appendUserRow = useCallback((text: string): string => {
+    const id = uid();
+    setMessages((prev) => [
+      ...(prev ?? []),
+      { id, sender: 'user', text, createdAt: new Date().toISOString() },
+    ]);
+    return id;
+  }, []);
+
+  // Follow-ups queued behind a turn that failed or was stopped never went out:
+  // they fail visibly (Retry on the row) rather than vanishing.
+  const failQueued = useCallback(() => {
+    const ids = new Set(sendQueue.current.map((q) => q.id));
+    sendQueue.current = [];
+    if (ids.size === 0) return;
+    setMessages((prev) => (prev ?? []).map((m) => (ids.has(m.id) ? { ...m, failed: true } : m)));
+  }, []);
+
+  const dispatchRef = useRef<(text: string, anchorId: string) => void>(() => {});
   const dispatch = useCallback(
-    (text: string) => {
-      const anchorId = uid();
-      setMessages((prev) => [
-        ...(prev ?? []),
-        { id: anchorId, sender: 'user', text, createdAt: new Date().toISOString() },
-      ]);
-      setPending({ phase: 'waiting', text: '' });
-      canceled.current = false;
+    (text: string, anchorId: string) => {
+      const gen = ++dispatchGen.current;
+      const current = () => gen === dispatchGen.current;
+      activeAnchor.current = anchorId;
+      const waiting: Pending = { phase: 'waiting', text: '' };
+      pendingRef.current = waiting; // eager: a send in the same tick must queue
+      setPending(waiting);
       firstTokenSeen.current = false;
       sentAt.current = Date.now();
 
       api
         .sendChat(text)
         .then((reply) => {
-          if (canceled.current) return;
+          if (!current()) return;
           // Some seams echo the user's turn back; the optimistic copy already
           // renders it — drop the echo so it can't land below the answer.
           const incoming = reply.messages.filter(
@@ -219,6 +249,7 @@ export function ChatScreen() {
           streamHandle.current = streamText(full, {
             instant: reduced,
             onChunk: (soFar) => {
+              if (!current()) return;
               if (!firstTokenSeen.current) {
                 firstTokenSeen.current = true;
                 console.log(`[chat] first token in ${Date.now() - sentAt.current}ms`);
@@ -226,7 +257,9 @@ export function ChatScreen() {
               setPending({ phase: 'streaming', text: soFar });
             },
             onDone: () => {
+              if (!current()) return;
               streamHandle.current = null;
+              activeAnchor.current = null;
               setPending(null);
               // Reconcile the optimistic user row with its persisted id, so a
               // later history merge dedupes it by id instead of duplicating it.
@@ -243,50 +276,61 @@ export function ChatScreen() {
               });
               haptic.success();
               const next = sendQueue.current.shift();
-              if (next) dispatchRef.current(next);
+              if (next) dispatchRef.current(next.text, next.id);
             },
           });
         })
         .catch(() => {
-          if (canceled.current) return;
+          if (!current()) return;
+          activeAnchor.current = null;
           setPending(null);
-          sendQueue.current = []; // don't fire follow-ups into a dead connection
           // Mark the exact failed turn; Retry lives on the row.
           setMessages((prev) =>
             (prev ?? []).map((m) => (m.id === anchorId ? { ...m, failed: true } : m)),
           );
+          failQueued(); // don't fire follow-ups into a dead connection
         });
     },
-    [reduced],
+    [reduced, failQueued],
   );
   dispatchRef.current = dispatch;
 
   const handleSend = useCallback(
     (text: string) => {
+      // The user's own turn shows immediately, whether it goes out now or queues.
+      const id = appendUserRow(text);
       if (pendingRef.current) {
-        sendQueue.current.push(text); // strict order: dispatched after this reply
+        sendQueue.current.push({ id, text }); // strict order: dispatched after this reply
         return;
       }
-      dispatch(text);
+      dispatch(text, id);
     },
-    [dispatch],
+    [appendUserRow, dispatch],
   );
 
   const handleStop = useCallback(() => {
-    canceled.current = true;
+    // Client-side stop: the server finishes and persists the turn regardless
+    // (it serializes per user), so the full reply can surface on a later
+    // history load. Here it can no longer land anything.
+    dispatchGen.current++;
     streamHandle.current?.cancel();
     streamHandle.current = null;
-    sendQueue.current = [];
     const p = pendingRef.current;
+    const anchorId = activeAnchor.current;
+    activeAnchor.current = null;
     setPending(null);
     // Keep what was already on screen — a stop is a stop, not an undo.
     if (p?.phase === 'streaming' && p.text.length > 0) {
-      setMessages((prev) => [
-        ...(prev ?? []),
-        { id: uid(), sender: 'portia', text: p.text, createdAt: new Date().toISOString() },
-      ]);
+      const partial: Message = {
+        id: uid(),
+        sender: 'portia',
+        text: p.text,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => insertAfterAnchor(prev, anchorId, [partial]));
     }
-  }, []);
+    failQueued();
+  }, [failQueued]);
 
   const handleRetry = useCallback(
     (failed: Message) => {

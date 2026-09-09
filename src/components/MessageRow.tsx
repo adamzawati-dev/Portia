@@ -119,7 +119,7 @@ export const MessageRow = React.memo(function MessageRow({
           accessibilityLabel="Retry sending this message"
         >
           <AppText variant="caption" color={palette.attention}>
-            Didn't send — Retry
+            Didn't send. Retry
           </AppText>
         </Press>
       ) : null}

@@ -22,7 +22,15 @@ const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 export const isSupabaseConfigured =
   !!url && !!anonKey && !url.includes('YOUR-PROJECT') && !anonKey.includes('YOUR-ANON');
 
-export const supabase = createClient(url ?? 'http://localhost', anonKey ?? 'public-anon-key', {
+const supabaseUrl = url ?? 'http://localhost';
+
+// supabase-js's default auth storage key for this project (`sb-<ref>-auth-token`),
+// mirrored from its SupabaseClient constructor. The offline sign-out fallback
+// (src/auth/session) drops the persisted session by this name. Deliberately NOT
+// passed to createClient: the default already is this value.
+export const AUTH_STORAGE_KEY = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+
+export const supabase = createClient(supabaseUrl, anonKey ?? 'public-anon-key', {
   auth: {
     storage: chunkedSecureStore,
     persistSession: true,

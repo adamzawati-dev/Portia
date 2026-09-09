@@ -102,9 +102,14 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
   };
 
   const confirmSignOut = () => {
-    Alert.alert('Sign out?', 'You’ll need Sign in with Apple to get back in.', [
+    Alert.alert('Sign out?', 'You’ll need to sign in again to get back in.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: () =>
+          signOut().catch(() => Alert.alert('Couldn’t sign out', 'Try again.')),
+      },
     ]);
   };
 

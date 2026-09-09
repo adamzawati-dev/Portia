@@ -14,7 +14,8 @@ import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { api, ApiError, setOnUnauthorized, setSessionToken } from '../api/client';
 import { clearAccountsCache } from '../api/accountsCache';
-import { supabase } from './supabase';
+import { AUTH_STORAGE_KEY, supabase } from './supabase';
+import { chunkedSecureStore } from './secureStorage';
 import { signInWithApple } from './apple';
 
 export type SessionPhase =
@@ -47,6 +48,24 @@ type SessionValue = {
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
+
+// Sign out, offline included. auth-js posts /logout first and, on a network
+// error, returns { error } WITHOUT dropping the local session: no SIGNED_OUT
+// fires, the user stays signed in, and nothing says so. Fall back to a local
+// sign-out. In auth-js 2.108 the local scope still posts /logout, so if that
+// fails too, drop the persisted session ourselves and run the local pass again:
+// with nothing in storage it skips the network and emits SIGNED_OUT. (The
+// refresh token is then revoked only if a later global sign-out reaches the
+// server; that is the price of signing out with no connection.)
+async function signOutSupabase(): Promise<void> {
+  const global = await supabase.auth.signOut();
+  if (!global.error) return;
+  const local = await supabase.auth.signOut({ scope: 'local' });
+  if (!local.error) return;
+  await chunkedSecureStore.removeItem(AUTH_STORAGE_KEY).catch(() => {});
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  if (error) throw error;
+}
 
 export function useSession(): SessionValue {
   const ctx = useContext(SessionContext);
@@ -122,7 +141,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setOnUnauthorized((error) => {
       if (error.code === ACCOUNT_DELETED_CODE) setSignedOutNotice(ACCOUNT_DELETED_NOTICE);
-      void supabase.auth.signOut();
+      signOutSupabase().catch(() => {});
     });
     return () => setOnUnauthorized(null);
   }, []);
@@ -185,7 +204,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     setSignedOutNotice(null);
-    await supabase.auth.signOut(); // listener routes to 'signedOut'
+    await signOutSupabase(); // listener routes to 'signedOut'
   }, []);
 
   return (

@@ -3,8 +3,9 @@
 // pill of REAL state (which institution, how many transactions so far) floating in
 // the top chrome while the backfill runs, flipping to the apricot invite when the
 // first read is ready. Concrete state beats reassuring copy. Tapping while the
-// engine is analyzing is a safe retry kick (GET /diagnostic while 'pending' never
-// marks anything seen); tapping the invite opens the reveal.
+// engine is analyzing is a retry kick (GET /diagnostic while 'pending' never marks
+// anything seen), and if that fetch comes back ready the reveal opens right then
+// instead of the payload being discarded. Tapping the invite opens the reveal.
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { glass, palette, radius, spacing } from '../../theme/dusk';
@@ -14,7 +15,7 @@ import { api } from '../api/client';
 import type { SyncStatus } from '../hooks/useSyncStatus';
 
 export function SyncChip({ status, onOpenReveal }: { status: SyncStatus; onOpenReveal: () => void }) {
-  const { items, diagnosticState, stalled, analyzingStalled } = status;
+  const { items, diagnosticState, stalled, analyzingStalled, unreachable, refetch } = status;
   const syncing = items.filter((i) => !i.historicalUpdateComplete);
 
   let label: string;
@@ -22,6 +23,9 @@ export function SyncChip({ status, onOpenReveal }: { status: SyncStatus; onOpenR
   if (diagnosticState === 'ready') {
     label = 'Your first read is ready';
     ready = true;
+  } else if (unreachable) {
+    // The polls themselves are failing: say that, never "the bank is slow".
+    label = "Couldn't check on the sync. Tap to retry.";
   } else if (syncing.length > 0) {
     const first = syncing[0];
     const name = first.institutionName ?? 'your bank';
@@ -39,13 +43,23 @@ export function SyncChip({ status, onOpenReveal }: { status: SyncStatus; onOpenR
     return null;
   }
 
-  const onPress = ready ? onOpenReveal : () => api.getDiagnostic().catch(() => {});
+  // The retry kick uses its response: the chip label lags /me by up to a poll, so
+  // the read may already be ready (or 'done' with segments) -- open it.
+  const kick = () =>
+    api
+      .getDiagnostic()
+      .then((d) => {
+        if ((d.state === 'ready' || d.state === 'done') && d.segments.length > 0) onOpenReveal();
+      })
+      .catch(() => {});
+  const onPress = ready ? onOpenReveal : unreachable ? refetch : kick;
 
   return (
     <View pointerEvents="box-none" style={styles.slot}>
       <Press
         onPress={onPress}
         commit={ready}
+        hitSlop={spacing.md}
         accessibilityRole="button"
         accessibilityLabel={ready ? 'Your first read is ready. Open it.' : label}
         style={[styles.chip, ready && styles.chipReady]}

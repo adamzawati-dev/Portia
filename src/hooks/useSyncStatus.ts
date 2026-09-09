@@ -14,6 +14,9 @@ const STALL_MS = 10 * 60 * 1000;
 // this it has almost certainly crashed server-side. The chip must say so -- a crashed
 // write presented as normal progress is how a production bug stayed invisible.
 const ANALYZE_STALL_MS = 3 * 60 * 1000;
+// Consecutive /me failures before the chip says the connection is the problem
+// instead of freezing a stale count or blaming the bank. Resets on success.
+const UNREACHABLE_AFTER = 2;
 
 export type SyncStatus = {
   items: SyncItem[];
@@ -22,10 +25,21 @@ export type SyncStatus = {
   stalled: boolean;
   /** Backfill finished but the diagnostic has been 'pending' too long -- stuck. */
   analyzingStalled: boolean;
+  /** The last UNREACHABLE_AFTER polls failed outright: no state landed at all. */
+  unreachable: boolean;
   /** Anything worth showing a chip for. */
   active: boolean;
   refetch: () => void;
 };
+
+const sameItems = (a: SyncItem[], b: SyncItem[]): boolean =>
+  a.length === b.length &&
+  a.every(
+    (x, i) =>
+      x.institutionName === b[i].institutionName &&
+      x.historicalUpdateComplete === b[i].historicalUpdateComplete &&
+      x.transactionCount === b[i].transactionCount,
+  );
 
 export function useSyncStatus(): SyncStatus {
   const [items, setItems] = useState<SyncItem[]>([]);
@@ -33,14 +47,21 @@ export function useSyncStatus(): SyncStatus {
     useState<Me['onboarding']['diagnosticState']>('done');
   const [stalled, setStalled] = useState(false);
   const [analyzingStalled, setAnalyzingStalled] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
   const startedAt = useRef(Date.now());
   const analyzingSince = useRef<number | null>(null);
+  const failures = useRef(0);
 
+  // Every setState below is a no-op when the value is unchanged (React bails
+  // out on identical state; items keep their previous reference when equal), so
+  // the 5s poll does not re-render MainTabs and both mounted screens for nothing.
   const load = useCallback(async () => {
     try {
       const me = await api.getMe();
+      failures.current = 0;
+      setUnreachable(false);
       const nextItems = me.onboarding.items ?? [];
-      setItems(nextItems);
+      setItems((prev) => (sameItems(prev, nextItems) ? prev : nextItems));
       setDiagnosticState(me.onboarding.diagnosticState);
       const incomplete = nextItems.some((i) => !i.historicalUpdateComplete);
       setStalled(incomplete && Date.now() - startedAt.current > STALL_MS);
@@ -51,9 +72,14 @@ export function useSyncStatus(): SyncStatus {
         analyzing && Date.now() - (analyzingSince.current ?? Date.now()) > ANALYZE_STALL_MS,
       );
     } catch {
-      // Transient fetch failures keep the last known state; the next tick retries.
+      // The last known state stays up; the next tick retries. Past the threshold
+      // the chip says the connection is the problem rather than blaming the bank.
+      failures.current += 1;
+      if (failures.current >= UNREACHABLE_AFTER) setUnreachable(true);
     }
   }, []);
+
+  const refetch = useCallback(() => void load(), [load]);
 
   const syncing = items.some((i) => !i.historicalUpdateComplete);
   const active = syncing || diagnosticState === 'pending' || diagnosticState === 'ready';
@@ -68,5 +94,5 @@ export function useSyncStatus(): SyncStatus {
     return () => clearInterval(t);
   }, [active, load]);
 
-  return { items, diagnosticState, stalled, analyzingStalled, active, refetch: () => void load() };
+  return { items, diagnosticState, stalled, analyzingStalled, unreachable, active, refetch };
 }

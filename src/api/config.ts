@@ -7,7 +7,17 @@
 
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 
-export const USE_MOCK = !apiUrl;
+// Fail closed. The mock returns invented balances and canned replies; a release
+// build that lost its API URL (an EAS environment missing the variable) must
+// crash at launch, not ship the mock to real users as if it were their money.
+if (!__DEV__ && !apiUrl) {
+  throw new Error(
+    'EXPO_PUBLIC_API_URL is not set. A release build cannot fall back to the in-process mock; define it in the EAS environment for this build profile.',
+  );
+}
+
+// The mock is a development convenience only: dev build + no URL configured.
+export const USE_MOCK = __DEV__ && !apiUrl;
 
 // Base URL of the real backend seam. Unused while USE_MOCK is true.
 export const BASE_URL = apiUrl ?? 'https://api.portia.invalid';

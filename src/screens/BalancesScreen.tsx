@@ -8,9 +8,11 @@
 //
 // Every figure comes from GET /accounts; the app sums nothing. Grouping rows
 // by their contract-declared type and counting rendered rows is display, not
-// math. The insight line renders summary.insight verbatim when the backend
-// sends it (proposed contract field) and nothing otherwise. A Pending section
-// is deliberately absent: the contract carries no pending data yet.
+// math. The credit total is summary.creditOwed, the Pending section is
+// summary.pending, and the insight line is summary.insight, each rendered
+// verbatim only when the backend sends it. An institution whose live refresh
+// failed (refreshFailed) gets one honest line under its rows, and any account
+// window that isn't "as of just now" shows in the row's metadata.
 //
 // Cached-first: the last-known overview paints instantly (memory on tab
 // switches, Keychain on cold start) while a silent refresh runs. Fresh data
@@ -55,49 +57,100 @@ const STALE_MS = 5 * 60_000;
 type Row =
   | { kind: 'section'; key: string; label: string }
   | { kind: 'account'; key: string; account: Account; institution: string; last: boolean }
+  | { kind: 'refreshFailed'; key: string; text: string; last: boolean }
+  | { kind: 'total'; key: string; label: string; amount: number; window?: string }
+  | { kind: 'pending'; key: string; label: string; amount: number; window: string; last: boolean }
   | { kind: 'insight'; key: string; text: string };
 
+// The backend's live-freshness label; anything else is worth showing on the row.
+const LIVE_WINDOW = 'as of just now';
+
 function buildRows(data: AccountsOverview): { rows: Row[]; cashCount: number; hasCredit: boolean } {
-  const cash: { account: Account; institution: string }[] = [];
-  const credit: { account: Account; institution: string }[] = [];
-  for (const inst of data.institutions) {
-    for (const account of inst.accounts) {
-      (account.type === 'credit' ? credit : cash).push({
-        account,
-        institution: inst.institutionName,
-      });
+  const rows: Row[] = [];
+
+  // One section per money type. Within a section, rows stay contiguous per
+  // institution (contract order), so a failed institution's line sits directly
+  // under its own rows -- once, in the first section that holds any of them.
+  const noted = new Set<string>();
+  const pushSection = (
+    type: Account['type'],
+    label: string,
+    trailing: Row | null,
+  ): number => {
+    const entries: { account: Account; institution: string }[] = [];
+    const afterInstitution = new Map<string, string>();
+    for (const inst of data.institutions) {
+      const own = inst.accounts.filter((a) => a.type === type);
+      if (own.length === 0) continue;
+      for (const account of own) entries.push({ account, institution: inst.institutionName });
+      if (inst.refreshFailed && !noted.has(inst.institutionName)) {
+        noted.add(inst.institutionName);
+        afterInstitution.set(
+          inst.institutionName,
+          `${inst.institutionName} didn't refresh. Your last balance is still shown, ${
+            inst.lastGoodWindow ?? 'as of the last refresh'
+          }.`,
+        );
+      }
     }
+    if (entries.length === 0) return 0;
+    rows.push({ kind: 'section', key: `s-${type}`, label });
+    entries.forEach((e, i) => {
+      const endOfSection = i === entries.length - 1 && trailing == null;
+      const lastOfInstitution =
+        i === entries.length - 1 || entries[i + 1].institution !== e.institution;
+      const note = lastOfInstitution ? afterInstitution.get(e.institution) : undefined;
+      // The hairline sits under whichever row closes this institution's block.
+      rows.push({
+        kind: 'account',
+        key: e.account.id,
+        account: e.account,
+        institution: e.institution,
+        last: endOfSection || note != null,
+      });
+      if (note) {
+        rows.push({ kind: 'refreshFailed', key: `rf-${e.institution}`, text: note, last: endOfSection });
+      }
+    });
+    if (trailing) rows.push(trailing);
+    return entries.length;
+  };
+
+  const cashCount = pushSection('depository', 'CASH', null);
+  const hasCredit =
+    pushSection(
+      'credit',
+      'CREDIT',
+      data.summary.creditOwed != null
+        ? {
+            kind: 'total',
+            key: 't-credit',
+            label: 'Total owed',
+            amount: data.summary.creditOwed,
+            window: data.summary.creditOwedWindow,
+          }
+        : null,
+    ) > 0;
+
+  const pending = data.summary.pending ?? [];
+  if (pending.length > 0) {
+    rows.push({ kind: 'section', key: 's-pending', label: 'PENDING' });
+    pending.forEach((p, i) =>
+      rows.push({
+        kind: 'pending',
+        key: `p-${i}-${p.label}`,
+        label: p.label,
+        amount: p.amount,
+        window: p.window,
+        last: i === pending.length - 1,
+      }),
+    );
   }
 
-  const rows: Row[] = [];
-  if (cash.length > 0) {
-    rows.push({ kind: 'section', key: 's-cash', label: 'CASH' });
-    cash.forEach((c, i) =>
-      rows.push({
-        kind: 'account',
-        key: c.account.id,
-        account: c.account,
-        institution: c.institution,
-        last: i === cash.length - 1,
-      }),
-    );
-  }
-  if (credit.length > 0) {
-    rows.push({ kind: 'section', key: 's-credit', label: 'CREDIT' });
-    credit.forEach((c, i) =>
-      rows.push({
-        kind: 'account',
-        key: c.account.id,
-        account: c.account,
-        institution: c.institution,
-        last: i === credit.length - 1,
-      }),
-    );
-  }
   if (data.summary.insight) {
     rows.push({ kind: 'insight', key: 'insight', text: data.summary.insight });
   }
-  return { rows, cashCount: cash.length, hasCredit: credit.length > 0 };
+  return { rows, cashCount, hasCredit };
 }
 
 function ago(fetchedAt: number, now: number): string {
@@ -116,6 +169,9 @@ export function BalancesScreen() {
   const [data, setData] = useState<AccountsOverview | null>(initial?.data ?? null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(initial?.fetchedAt ?? null);
   const [error, setError] = useState<string | null>(null);
+  // A refresh that failed while a last-known overview is on screen: said once,
+  // under the hero, and cleared by the next success.
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -123,6 +179,8 @@ export function BalancesScreen() {
   const alive = useRef(true);
   const dataRef = useRef(data);
   dataRef.current = data;
+  const fetchedAtRef = useRef(fetchedAt);
+  fetchedAtRef.current = fetchedAt;
   const networkLanded = useRef(false);
   // Rows stagger once, on their first appearance; refreshes update in place.
   const staggered = useRef(false);
@@ -145,12 +203,21 @@ export function BalancesScreen() {
       setData(d);
       setFetchedAt(Date.now());
       setError(null);
+      setRefreshNotice(null);
       if (viaPull) haptic.success();
     } catch (e) {
       if (!alive.current) return;
-      // With a last-known overview on screen the failure stays silent — the
-      // staleness caption carries it. With nothing to show, say what happened.
-      if (!dataRef.current) {
+      if (dataRef.current) {
+        // A last-known overview stays up; say the refresh failed and how old
+        // what's showing is (the client's own fetch time, same as the caption).
+        const at = fetchedAtRef.current;
+        setRefreshNotice(
+          at != null
+            ? `Couldn't refresh. Showing balances from ${ago(at, Date.now())}.`
+            : `Couldn't refresh. Showing your last balances, ${dataRef.current.summary.window}.`,
+        );
+        if (viaPull) haptic.warning();
+      } else {
         setError(e instanceof ApiError ? e.message : "Couldn't load your accounts just now.");
       }
     } finally {
@@ -322,12 +389,18 @@ export function BalancesScreen() {
               ? `Across ${shaped.cashCount} cash account${shaped.cashCount === 1 ? '' : 's'}`
               : null,
             shaped.hasCredit ? 'Credit excluded' : null,
-            stale && fetchedAt != null ? `Updated ${ago(fetchedAt, now)}` : data.summary.window,
+            data.summary.window,
+            stale && fetchedAt != null ? `updated ${ago(fetchedAt, now)}` : null,
           ]
             .filter(Boolean)
             .join(' · ')}
         </AppText>
       </Animated.View>
+      {refreshNotice ? (
+        <AppText variant="caption" color={palette.textSecondary} style={styles.refreshNotice}>
+          {refreshNotice}
+        </AppText>
+      ) : null}
     </View>
   );
 
@@ -362,6 +435,12 @@ export function BalancesScreen() {
                 <SectionHeader label={item.label} />
               ) : item.kind === 'account' ? (
                 <AccountRow account={item.account} institution={item.institution} last={item.last} />
+              ) : item.kind === 'refreshFailed' ? (
+                <RefreshFailedLine text={item.text} last={item.last} />
+              ) : item.kind === 'total' ? (
+                <TotalRow label={item.label} amount={item.amount} window={item.window} />
+              ) : item.kind === 'pending' ? (
+                <PendingRow label={item.label} amount={item.amount} window={item.window} last={item.last} />
               ) : (
                 <InsightLine text={item.text} />
               )}
@@ -416,7 +495,9 @@ function AccountRow({
           {account.name}
         </AppText>
         <AppText variant="micro" color={palette.textTertiary}>
-          {`···· ${account.mask} · ${institution}`}
+          {[`···· ${account.mask}`, institution, account.window !== LIVE_WINDOW ? account.window : null]
+            .filter(Boolean)
+            .join(' · ')}
         </AppText>
       </View>
       <View style={styles.rowRight}>
@@ -436,6 +517,68 @@ function AccountRow({
             </AppText>
           </View>
         ) : null}
+      </View>
+    </View>
+  );
+}
+
+// One honest line under a bank whose live refresh failed. Its rows above are
+// the cached balances; the backend's lastGoodWindow says how old.
+function RefreshFailedLine({ text, last }: { text: string; last: boolean }) {
+  return (
+    <View style={[styles.refreshFailed, !last && styles.rowDivider]}>
+      <AppText variant="caption" color={palette.textSecondary}>
+        {text}
+      </AppText>
+    </View>
+  );
+}
+
+// A section total the backend summed (never the app). Same axis as the rows.
+function TotalRow({ label, amount, window }: { label: string; amount: number; window?: string }) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <AppText variant="body" color={palette.textSecondary}>
+          {label}
+        </AppText>
+        {window ? (
+          <AppText variant="micro" color={palette.textTertiary}>
+            {window}
+          </AppText>
+        ) : null}
+      </View>
+      <View style={styles.rowRight}>
+        <Money value={amount} variant="numSM" color={palette.textSecondary} />
+      </View>
+    </View>
+  );
+}
+
+// One live pending charge, exactly as the backend labels and windows it.
+function PendingRow({
+  label,
+  amount,
+  window,
+  last,
+}: {
+  label: string;
+  amount: number;
+  window: string;
+  last: boolean;
+}) {
+  return (
+    <View style={[styles.row, !last && styles.rowDivider]}>
+      <View style={styles.rowLeft}>
+        <AppText variant="body" color={palette.textPrimary}>
+          {label}
+        </AppText>
+        <AppText variant="micro" color={palette.textTertiary}>
+          {window}
+        </AppText>
+      </View>
+      <View style={styles.rowRight}>
+        <Money value={amount} variant="numSM" />
       </View>
     </View>
   );
@@ -467,6 +610,12 @@ const styles = StyleSheet.create({
   },
   hero: {
     marginBottom: spacing.md,
+  },
+  refreshNotice: {
+    marginTop: spacing.sm,
+  },
+  refreshFailed: {
+    paddingBottom: spacing.md,
   },
   heroGap: {
     marginTop: spacing.md,

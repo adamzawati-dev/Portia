@@ -52,6 +52,20 @@ import { api } from '../api/client';
 
 let nextId = 0;
 const uid = () => `m${Date.now()}-${nextId++}`;
+// Local (optimistic/failed) rows carry the `m<ts>-n` id shape; server rows carry
+// their persisted ids. The shape is how a history merge tells them apart.
+const LOCAL_ID = /^m\d+-\d+$/;
+const isLocalId = (id: string) => LOCAL_ID.test(id);
+
+/** Merge a server history page over the thread: the page is authoritative for
+ *  every persisted row, and local rows (optimistic, queued, failed) that the
+ *  server hasn't acknowledged by id stay put below it — a refetch never wipes a
+ *  turn that is still in flight. */
+function mergeHistory(prev: Message[] | null, page: Message[]): Message[] {
+  const serverIds = new Set(page.map((m) => m.id));
+  const local = (prev ?? []).filter((m) => isLocalId(m.id) && !serverIds.has(m.id));
+  return [...page, ...local];
+}
 
 // Inverted list: offset 0 is the newest message ("the bottom").
 const NEAR_BOTTOM_PX = 80;
@@ -96,6 +110,8 @@ export function ChatScreen() {
   const nearBottom = useRef(true);
   const pendingRef = useRef<Pending | null>(null);
   pendingRef.current = pending;
+  const messagesRef = useRef<Message[] | null>(null);
+  messagesRef.current = messages;
   const streamHandle = useRef<StreamHandle | null>(null);
   const canceled = useRef(false);
   const sentAt = useRef(0);
@@ -129,11 +145,19 @@ export function ChatScreen() {
         // Undecidable (0 or 1 message, or all-equal stamps): assume the
         // contract's newest-first.
         if (orientation !== 1) page.reverse();
-        setMessages(page);
+        const hasLocalRows = (messagesRef.current ?? []).some((m) => isLocalId(m.id));
+        setMessages((prev) => mergeHistory(prev, page));
         // Just after the reveal, Portia's opening line may still be writing
         // (POST /diagnostic/continue is fire-and-forget) -- an empty thread
-        // re-checks briefly so the seed is collected, not missed.
-        if (page.length === 0 && seedTries.current++ < 3) {
+        // re-checks briefly so the seed is collected, not missed. Not while a
+        // send is pending or a local row exists: the user has already started
+        // the conversation, and the seed only lands on an empty thread anyway.
+        if (
+          page.length === 0 &&
+          !pendingRef.current &&
+          !hasLocalRows &&
+          seedTries.current++ < 3
+        ) {
           setTimeout(() => alive.current && loadHistory(), 1500);
         }
       })
@@ -204,7 +228,19 @@ export function ChatScreen() {
             onDone: () => {
               streamHandle.current = null;
               setPending(null);
-              setMessages((prev) => insertAfterAnchor(prev, anchorId, incoming));
+              // Reconcile the optimistic user row with its persisted id, so a
+              // later history merge dedupes it by id instead of duplicating it.
+              const userId = reply.userMessageId;
+              setMessages((prev) => {
+                let rows = prev ?? [];
+                if (userId) {
+                  rows = rows.some((m) => m.id === userId)
+                    ? rows.filter((m) => m.id !== anchorId)
+                    : rows.map((m) => (m.id === anchorId ? { ...m, id: userId } : m));
+                }
+                const fresh = incoming.filter((m) => !rows.some((r) => r.id === m.id));
+                return insertAfterAnchor(rows, userId ?? anchorId, fresh);
+              });
               haptic.success();
               const next = sendQueue.current.shift();
               if (next) dispatchRef.current(next);

@@ -23,7 +23,9 @@ implements it (`src/api/mock.ts`), so both sides move in parallel.
   to fix it). `401` means the session token is missing/expired — app routes to
   sign-in. A `401` with `code: 'account_deleted'` means the account behind a
   still-valid token was deleted; the app signs out and says so on the sign-in
-  screen. Any other failure of `GET /me` at launch (offline, 5xx, timeout) is NOT
+  screen. On that request the backend also retries the pending auth-identity
+  cleanup, so signing in again a moment later creates a fresh account rather
+  than looping on the deleted one. Any other failure of `GET /me` at launch (offline, 5xx, timeout) is NOT
   a sign-out: the app keeps the session and shows a retry screen.
   Cross-cutting codes the client must handle without signing out:
   - `409 busy` — this user already has a `POST /chat` turn running; wait for it
@@ -166,6 +168,13 @@ hero number must arrive precomputed).
     window: string            // freshness label authored by the backend, e.g. "as of just now"
   }
   ```
+- `Account.name` is display-ready: the backend title-cases Plaid's ALL-CAPS account
+  names ("EVERYDAY CHECKING ...6147" -> "Everyday Checking ...6147"); render verbatim.
+- **409 `no_bank_linked`** only when the user has no linked institution at all; this is
+  the one case where routing to Link is right.
+- **503 `balances_unavailable`** when the balance read itself failed on the backend
+  (DB hiccup, timeout). The user's banks are still linked: show `message`, keep any
+  cached overview on screen, offer retry, and do NOT route to Link.
 
 ### `POST /chat`
 Send a message to Portia; receive her reply (possibly several messages).

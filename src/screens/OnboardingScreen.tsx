@@ -169,7 +169,12 @@ function BeatSpeak({ reduced }: { reduced: boolean }) {
 
   const ruleScale = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
-    if (reduced) return;
+    // A late flip to Reduce Motion must land on the finished beat, never strand
+    // the sequence (the cleanup below cancels the timer that would advance it).
+    if (reduced) {
+      setStage('line2');
+      return;
+    }
     ruleScale.value = withDelay(150, withSpring(1, { damping: 18, stiffness: 180 }));
     const t = setTimeout(() => {
       haptic.tick();
@@ -223,7 +228,10 @@ function BeatDemo({ reduced }: { reduced: boolean }) {
   // Question bubble springs in from the right, then she "thinks".
   const bubbleIn = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
-    if (reduced) return;
+    if (reduced) {
+      setStage('reply');
+      return;
+    }
     bubbleIn.value = withSpring(1, { damping: 20, stiffness: 160 });
     const t = setTimeout(() => setStage('thinking'), 700);
     return () => clearTimeout(t);

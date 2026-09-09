@@ -3,9 +3,16 @@
 // drift, no pulse, no specular tracking. Every motion-bearing primitive reads this.
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
+import { useReducedMotion as useReanimatedReducedMotion } from 'react-native-reanimated';
 
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
+  // Reanimated reads the native flag synchronously, so the FIRST render is already
+  // correct. Starting from `false` and flipping later raced every timer-driven
+  // sequence: the intro's beats cleared their own pending timeouts on the flip and
+  // never advanced, leaving a Reduce Motion user with no statement text at all.
+  // The AccessibilityInfo listener still tracks live changes.
+  const initial = useReanimatedReducedMotion();
+  const [reduced, setReduced] = useState(initial);
 
   useEffect(() => {
     let mounted = true;

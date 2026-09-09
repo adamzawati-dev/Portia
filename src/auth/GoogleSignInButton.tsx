@@ -15,8 +15,16 @@
 // lands, and an eager import would crash today's binaries for a feature that
 // is off. No secrets live in the client: the client ID is a public OAuth
 // identifier. Never log tokens.
-import React, { useEffect } from 'react';
+//
+// Nonce, mirroring ./apple: a raw nonce is generated per mount, Google is sent
+// its SHA-256 hex so the id_token's `nonce` claim is that hash, and the RAW
+// nonce goes to Supabase, which re-hashes and compares. Supabase rejects an
+// id_token whose nonce claim has no matching `nonce` in the request (and vice
+// versa), so the two halves must always travel together -- the auth request is
+// only built once the hash exists.
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import * as Crypto from 'expo-crypto';
 import { radius, spacing } from '../../theme/dusk';
 import { Press } from './../components/Press';
 import { supabase } from './supabase';
@@ -31,13 +39,40 @@ const authSession = () =>
   require('expo-auth-session/providers/google') as typeof import('expo-auth-session/providers/google');
 const webBrowser = () => require('expo-web-browser') as typeof import('expo-web-browser');
 
+type Nonce = { raw: string; hashed: string };
+
 export function GoogleSignInButton({ onError }: { onError: (message: string) => void }) {
+  // Hashing is async, and the auth request is keyed on its params: building it
+  // without the nonce and reloading once the hash lands would leave a window
+  // where a tap prompts with a nonce-less request while Supabase is handed the
+  // raw nonce. So the request-bearing component only mounts once both exist.
+  const [nonce, setNonce] = useState<Nonce | null>(null);
+  useEffect(() => {
+    let live = true;
+    const raw = Crypto.randomUUID();
+    Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, raw, {
+      encoding: Crypto.CryptoEncoding.HEX,
+    }).then((hashed) => {
+      if (live) setNonce({ raw, hashed });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (!nonce) return <GoogleButtonView disabled onPress={() => {}} />;
+  return <GoogleAuthButton nonce={nonce} onError={onError} />;
+}
+
+function GoogleAuthButton({ nonce, onError }: { nonce: Nonce; onError: (message: string) => void }) {
   useEffect(() => {
     webBrowser().maybeCompleteAuthSession();
   }, []);
 
+  const extraParams = useMemo(() => ({ nonce: nonce.hashed }), [nonce.hashed]);
   const [request, response, promptAsync] = authSession().useIdTokenAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    extraParams,
   });
 
   useEffect(() => {
@@ -57,20 +92,24 @@ export function GoogleSignInButton({ onError }: { onError: (message: string) => 
       // Success establishes the Supabase session; the auth listener routes
       // from there, identically to Apple.
       supabase.auth
-        .signInWithIdToken({ provider: 'google', token: idToken })
+        .signInWithIdToken({ provider: 'google', token: idToken, nonce: nonce.raw })
         .then(({ error }) => {
           if (error) onError("Couldn't sign in with Google. Try again.");
         });
     }
-  }, [response, onError]);
+  }, [response, onError, nonce.raw]);
 
+  return <GoogleButtonView disabled={!request} onPress={() => void promptAsync()} />;
+}
+
+function GoogleButtonView({ disabled, onPress }: { disabled: boolean; onPress: () => void }) {
   return (
     <Press
-      onPress={() => void promptAsync()}
-      disabled={!request}
+      onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel="Continue with Google"
-      style={[styles.button, !request && styles.buttonDisabled]}
+      style={[styles.button, disabled && styles.buttonDisabled]}
     >
       <View style={styles.content}>
         <Image source={gLogo} style={styles.logo} />

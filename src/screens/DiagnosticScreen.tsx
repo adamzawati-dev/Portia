@@ -43,21 +43,30 @@ const AUTO_MS = 2800;
 // leaves gets the reveal on their next cold open (session routes 'ready' back here).
 const POLL_STEPS_MS = [2000, 3000, 5000, 5000, 8000, 10000];
 const POLL_MAX_MS = 180_000;
+// Consecutive fetch failures (no payload at all) before the screen stops calling
+// it "pending" and says the connection is the problem. A real 'pending' resets it.
+const UNREACHABLE_AFTER = 3;
 
 export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   const motion = useMotion();
   const [diag, setDiag] = useState<Diagnostic | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  // The last several attempts returned no payload (network / ApiError): a
+  // different truth from a real 'pending', and it gets its own line and a Retry.
+  const [unreachable, setUnreachable] = useState(false);
+  // Bumped by Retry to restart the poll from scratch.
+  const [attempt, setAttempt] = useState(0);
   const [index, setIndex] = useState(0);
 
-  // Poll with backoff until the diagnostic is ready or POLL_MAX_MS passes. Fetch
-  // errors are treated as pending (transient network) — the timeout view is the
-  // honest end state either way. Polling GET /diagnostic also lets the backend
-  // retry a crashed generation (the pull-based kick).
+  // Poll with backoff until the diagnostic is ready or POLL_MAX_MS passes. A
+  // genuine 'pending' payload keeps polling toward the timeout view; repeated
+  // fetch failures stop and say so instead. Polling GET /diagnostic also lets the
+  // backend retry a crashed generation (the pull-based kick).
   useEffect(() => {
     let active = true;
     let elapsed = 0;
     let step = 0;
+    let failures = 0;
 
     const schedule = () => {
       const delay = POLL_STEPS_MS[Math.min(step, POLL_STEPS_MS.length - 1)];
@@ -75,17 +84,29 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
         .getDiagnostic()
         .then((d) => {
           if (!active) return;
+          failures = 0;
           setDiag(d);
           if (d.state === 'pending') schedule();
         })
-        .catch(() => active && schedule());
+        .catch(() => {
+          if (!active) return;
+          failures += 1;
+          if (failures >= UNREACHABLE_AFTER) setUnreachable(true);
+          else schedule();
+        });
     };
 
     load();
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
+
+  const retry = () => {
+    setUnreachable(false);
+    setTimedOut(false);
+    setAttempt((n) => n + 1);
+  };
 
   const segments = diag?.segments ?? [];
   const ready = !!diag && (diag.state === 'ready' || diag.state === 'done') && segments.length > 0;
@@ -148,17 +169,32 @@ export function DiagnosticScreen({ onDone }: { onDone: () => void }) {
   };
 
   if (!ready) {
-    // Terminal non-reveal states get a line and a door — never a silent skip and
-    // never a frozen screen.
-    if (empty || timedOut) {
+    // Terminal non-reveal states get a line and a door -- never a silent skip and
+    // never a frozen screen. Unreachable also gets a Retry that restarts polling.
+    if (empty || timedOut || unreachable) {
       return (
         <Background>
           <View style={styles.centerWrap}>
             <AppText variant="title" color={palette.textSecondary} style={styles.loading}>
-              {empty
-                ? "Your read-through isn't ready to show. I'll bring what I found into our chat."
-                : "Your history is bigger than most — I'm still reading. I'll have the full picture next time you're here."}
+              {unreachable
+                ? "Couldn't reach Portia. Check your connection."
+                : empty
+                  ? "Your read-through isn't ready to show. I'll bring what I found into our chat."
+                  : "Still building your first read. I'll have it next time you're here."}
             </AppText>
+            {unreachable ? (
+              <Press
+                onPress={retry}
+                hitSlop={spacing.xs}
+                accessibilityRole="button"
+                accessibilityLabel="Retry"
+                style={styles.retry}
+              >
+                <AppText variant="title" color={palette.signature}>
+                  Retry
+                </AppText>
+              </Press>
+            ) : null}
             <View style={styles.escape}>
               <PrimaryButton label="Into the app" icon="arrow.right" onPress={onDone} />
             </View>
@@ -304,6 +340,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
   loading: { textAlign: 'center' },
+  retry: { marginTop: spacing.lg, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   escape: { marginTop: spacing.xxl, alignSelf: 'stretch' },
   cardWrap: {
     flex: 1,

@@ -45,7 +45,7 @@ import { MessageRow, StreamingRow, ThinkingSteps } from '../components/MessageRo
 import { Composer } from '../components/Composer';
 import { Glass } from '../components/Glass';
 import { Press } from '../components/Press';
-import { ChatSkeleton } from '../components/Skeleton';
+import { ChatSkeleton, Skeleton } from '../components/Skeleton';
 import { TAB_BAR_SPACE } from '../components/TabBar';
 import { Message } from '../chat/types';
 import { CHAT_STREAMING, streamText, StreamHandle } from '../chat/stream';
@@ -94,6 +94,28 @@ type Pending = {
   hero: HeroFigure | null;
 };
 
+/** A history page in conversation order (oldest first). The page's ORDER is
+ *  the truth about the conversation — never re-sort individual messages by
+ *  createdAt: a user turn and its reply are often persisted together with
+ *  identical timestamps, and a timestamp sort then leaves the newest-first
+ *  adjacency intact (reply above question — the reload-ordering bug). Instead,
+ *  detect the page's orientation from the first strict timestamp inequality
+ *  and reverse it wholesale, so server adjacency is preserved exactly. (The
+ *  contract serves newest-first; the mock serves oldest-first — both land.) */
+function orientPage(messages: Message[]): Message[] {
+  const page = [...messages];
+  let orientation = 0; // -1 = newest-first, 1 = oldest-first
+  for (let i = 1; i < page.length && orientation === 0; i++) {
+    const prev = Date.parse(page[i - 1].createdAt ?? '');
+    const cur = Date.parse(page[i].createdAt ?? '');
+    if (prev !== cur) orientation = prev > cur ? -1 : 1;
+  }
+  // Undecidable (0 or 1 message, or all-equal stamps): assume the contract's
+  // newest-first.
+  if (orientation !== 1) page.reverse();
+  return page;
+}
+
 /** Splice a reply in directly after the user turn that triggered it. */
 function insertAfterAnchor(
   prev: Message[] | null,
@@ -134,6 +156,11 @@ export function ChatScreen() {
   const firstTokenSeen = useRef(false);
   const alive = useRef(true);
   const seedTries = useRef(0);
+  // Older history: the server's opaque cursor for the page before the oldest
+  // one loaded (undefined = nothing older), and the in-flight guard.
+  const nextCursor = useRef<string | undefined>(undefined);
+  const loadingOlderRef = useRef(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   // Sends made while a reply is in flight (already rendered as user rows),
   // dispatched in order afterwards.
   const sendQueue = useRef<{ id: string; text: string }[]>([]);
@@ -144,24 +171,8 @@ export function ChatScreen() {
       .getChatHistory()
       .then((h) => {
         if (!alive.current) return;
-        // The page's ORDER is the truth about the conversation — never re-sort
-        // individual messages by createdAt: a user turn and its reply are often
-        // persisted together with identical timestamps, and a timestamp sort
-        // then leaves the newest-first adjacency intact (reply above question —
-        // the reload-ordering bug). Instead, detect the page's orientation from
-        // the first strict timestamp inequality and reverse it wholesale, so
-        // server adjacency is preserved exactly. (The contract serves newest-
-        // first; the mock serves oldest-first — both land correctly.)
-        const page = [...h.messages];
-        let orientation = 0; // -1 = newest-first, 1 = oldest-first
-        for (let i = 1; i < page.length && orientation === 0; i++) {
-          const prev = Date.parse(page[i - 1].createdAt ?? '');
-          const cur = Date.parse(page[i].createdAt ?? '');
-          if (prev !== cur) orientation = prev > cur ? -1 : 1;
-        }
-        // Undecidable (0 or 1 message, or all-equal stamps): assume the
-        // contract's newest-first.
-        if (orientation !== 1) page.reverse();
+        const page = orientPage(h.messages);
+        nextCursor.current = h.nextCursor;
         const hasLocalRows = (messagesRef.current ?? []).some((m) => isLocalId(m.id));
         setMessages((prev) => mergeHistory(prev, page));
         // Just after the reveal, Portia's opening line may still be writing
@@ -194,6 +205,33 @@ export function ChatScreen() {
       abortRef.current?.abort();
     };
   }, [loadHistory]);
+
+  // Scrolling toward the top of the inverted list reaches the oldest loaded
+  // row: fetch the page before it and prepend, in server order, skipping any
+  // row already on screen. A failed page keeps its cursor so the next reach
+  // simply tries again.
+  const loadOlder = useCallback(() => {
+    const cursor = nextCursor.current;
+    if (!cursor || loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    api
+      .getChatHistory(cursor)
+      .then((h) => {
+        if (!alive.current) return;
+        nextCursor.current = h.nextCursor;
+        const older = orientPage(h.messages);
+        setMessages((prev) => {
+          const seen = new Set((prev ?? []).map((m) => m.id));
+          return [...older.filter((m) => !seen.has(m.id)), ...(prev ?? [])];
+        });
+      })
+      .catch(() => {})
+      .finally(() => {
+        loadingOlderRef.current = false;
+        if (alive.current) setLoadingOlder(false);
+      });
+  }, []);
 
   const retryHistory = useCallback(() => {
     setMessages(null); // back to the thread skeleton while the retry runs
@@ -522,6 +560,18 @@ export function ChatScreen() {
                 keyExtractor={(m) => m.id}
                 renderItem={renderItem}
                 ListHeaderComponent={footer}
+                // Inverted: the list's end is the oldest loaded row, and its
+                // footer sits at the visual top — a page-shaped placeholder
+                // while the older page loads.
+                onEndReached={loadOlder}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                  loadingOlder ? (
+                    <View style={styles.olderLoading}>
+                      <Skeleton width="100%" height={56} round={radius.card} />
+                    </View>
+                  ) : null
+                }
                 contentContainerStyle={[
                   styles.list,
                   // Inverted: paddingBottom is the visual TOP — clear the
@@ -622,6 +672,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     gap: spacing.sm,
+  },
+  olderLoading: {
+    marginVertical: spacing.lg,
   },
   historyError: {
     flexDirection: 'row',

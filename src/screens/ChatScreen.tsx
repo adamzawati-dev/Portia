@@ -13,9 +13,11 @@
 // keyboard shrinking the list keeps the latest turns pinned and visible for
 // free. No maintainVisibleContentPosition (see the list props for why —
 // Fabric overlap bug); scrolled-up readers get the Latest pill. Content
-// dissolves under the fixed header through a true alpha mask (MaskedView). The seam is still
-// request/response — src/chat/stream presents the arrived reply as a token
-// stream. This screen renders exactly what arrives and computes nothing.
+// dissolves under the fixed header through a true alpha mask (MaskedView).
+// The seam is the SSE variant of POST /chat (real step labels while Portia
+// works, see src/chat/stream) with the JSON POST as fallback; the arrived reply
+// is presented as a token stream. This screen renders exactly what arrives and
+// computes nothing.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -46,9 +48,10 @@ import { Press } from '../components/Press';
 import { ChatSkeleton } from '../components/Skeleton';
 import { TAB_BAR_SPACE } from '../components/TabBar';
 import { Message } from '../chat/types';
-import { streamText, StreamHandle } from '../chat/stream';
+import { CHAT_STREAMING, streamText, StreamHandle } from '../chat/stream';
 import { useMotion } from '../hooks/useMotion';
-import { api } from '../api/client';
+import { api, ApiError, StreamUnavailableError } from '../api/client';
+import type { ChatReply, ChatStreamDone } from '../api/client';
 
 let nextId = 0;
 const uid = () => `m${Date.now()}-${nextId++}`;
@@ -81,7 +84,8 @@ const SUGGESTED_PROMPTS = [
   "How's this month tracking against last?",
 ];
 
-type Pending = { phase: 'waiting' | 'streaming'; text: string };
+// `steps` are the server's own progress labels for this turn, in order.
+type Pending = { phase: 'waiting' | 'streaming'; text: string; steps: string[] };
 
 /** Splice a reply in directly after the user turn that triggered it. */
 function insertAfterAnchor(
@@ -117,6 +121,8 @@ export function ChatScreen() {
   const messagesRef = useRef<Message[] | null>(null);
   messagesRef.current = messages;
   const streamHandle = useRef<StreamHandle | null>(null);
+  // Aborts the in-flight SSE request on Stop / unmount.
+  const abortRef = useRef<AbortController | null>(null);
   const sentAt = useRef(0);
   const firstTokenSeen = useRef(false);
   const alive = useRef(true);
@@ -178,6 +184,7 @@ export function ChatScreen() {
     return () => {
       alive.current = false;
       streamHandle.current?.cancel();
+      abortRef.current?.abort();
     };
   }, [loadHistory]);
 
@@ -230,14 +237,52 @@ export function ChatScreen() {
       const gen = ++dispatchGen.current;
       const current = () => gen === dispatchGen.current;
       activeAnchor.current = anchorId;
-      const waiting: Pending = { phase: 'waiting', text: '' };
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const waiting: Pending = { phase: 'waiting', text: '', steps: [] };
       pendingRef.current = waiting; // eager: a send in the same tick must queue
       setPending(waiting);
       firstTokenSeen.current = false;
       sentAt.current = Date.now();
 
-      api
-        .sendChat(text)
+      const viaJson = (): Promise<ChatReply> => api.sendChat(text);
+      // The SSE seam: the server's step labels as each tool starts, chunk text
+      // concatenated in order, the persisted reply on done. Chunks are held
+      // until done so the presenter reveals one complete, audited reply. Falls
+      // back to the JSON path only when no response arrived at all (then no
+      // turn was started server-side, so resending is safe).
+      const viaStream = (): Promise<ChatReply> => {
+        let chunks = '';
+        const result: { done?: ChatStreamDone } = {};
+        return api
+          .streamChat(
+            text,
+            {
+              onStep: (label) => {
+                if (!current()) return;
+                setPending((p) => ({ phase: 'waiting', text: '', steps: [...(p?.steps ?? []), label] }));
+              },
+              onChunk: (piece) => {
+                chunks += piece;
+              },
+              onDone: (done) => {
+                result.done = done;
+              },
+            },
+            controller.signal,
+          )
+          .then((): ChatReply => {
+            if (!result.done) throw new Error('stream ended without done');
+            const { message, userMessageId } = result.done;
+            return { messages: [{ ...message, text: chunks || message.text }], userMessageId };
+          })
+          .catch((e: unknown) => {
+            if (e instanceof StreamUnavailableError && current()) return viaJson();
+            throw e;
+          });
+      };
+
+      (CHAT_STREAMING ? viaStream() : viaJson())
         .then((reply) => {
           if (!current()) return;
           // Some seams echo the user's turn back; the optimistic copy already
@@ -254,7 +299,7 @@ export function ChatScreen() {
                 firstTokenSeen.current = true;
                 console.log(`[chat] first token in ${Date.now() - sentAt.current}ms`);
               }
-              setPending({ phase: 'streaming', text: soFar });
+              setPending({ phase: 'streaming', text: soFar, steps: [] });
             },
             onDone: () => {
               if (!current()) return;
@@ -280,13 +325,15 @@ export function ChatScreen() {
             },
           });
         })
-        .catch(() => {
+        .catch((e: unknown) => {
           if (!current()) return;
           activeAnchor.current = null;
           setPending(null);
-          // Mark the exact failed turn; Retry lives on the row.
+          // Mark the exact failed turn; Retry lives on the row, with the
+          // backend's own words when it said why.
+          const failure = e instanceof ApiError ? e.message : undefined;
           setMessages((prev) =>
-            (prev ?? []).map((m) => (m.id === anchorId ? { ...m, failed: true } : m)),
+            (prev ?? []).map((m) => (m.id === anchorId ? { ...m, failed: true, failure } : m)),
           );
           failQueued(); // don't fire follow-ups into a dead connection
         });
@@ -318,6 +365,8 @@ export function ChatScreen() {
     // (it serializes per user), so the full reply can surface on a later
     // history load. Here it can no longer land anything.
     dispatchGen.current++;
+    abortRef.current?.abort();
+    abortRef.current = null;
     streamHandle.current?.cancel();
     streamHandle.current = null;
     const p = pendingRef.current;
@@ -371,7 +420,7 @@ export function ChatScreen() {
 
   const footer = pending ? (
     pending.phase === 'waiting' ? (
-      <ThinkingSteps />
+      <ThinkingSteps steps={pending.steps} />
     ) : (
       <StreamingRow text={pending.text} caretOn={caretOn} />
     )

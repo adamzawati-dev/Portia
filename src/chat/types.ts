@@ -7,6 +7,8 @@ export type Message = {
   text: string;
   /** Server timestamp (ChatMessage) or local send time — total ordering key. */
   createdAt?: string;
-  /** Local-only: this user message never reached the backend (shows inline Retry). */
+  /** Local-only: this user message never got its reply (shows inline Retry). */
   failed?: boolean;
+  /** Local-only: why, in the backend's own voice when it said so. */
+  failure?: string;
 };

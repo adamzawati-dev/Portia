@@ -3,14 +3,18 @@
 // real HTTP client or the in-process mock, chosen by USE_MOCK (see config). Every
 // screen imports `api` and the contract types from here — nothing else knows
 // whether the seam is live. The app does no arithmetic; it renders what arrives.
+import { fetch as streamingFetch } from 'expo/fetch';
 import { BASE_URL, USE_MOCK } from './config';
 import { supabase } from '../auth/supabase';
+import { CHAT_STREAM_IDLE_MS, parseSSEFrames } from '../chat/stream';
 import type {
   AccountsOverview,
   ApiErrorBody,
   ChatHistory,
   ContinueDiagnostic,
   ChatReply,
+  ChatStreamDone,
+  ChatStreamHandlers,
   Diagnostic,
   ExchangeInput,
   ExchangeResult,
@@ -31,6 +35,12 @@ export interface PortiaApi {
   getAccounts(): Promise<AccountsOverview>;
   getChatHistory(cursor?: string): Promise<ChatHistory>;
   sendChat(message: string): Promise<ChatReply>;
+  /** POST /chat as SSE (`Accept: text/event-stream`). Resolves after `done`;
+   *  rejects with the ApiError an `error` frame carried, a `timeout` after
+   *  CHAT_STREAM_IDLE_MS of silence, `canceled` on the caller's signal, or
+   *  StreamUnavailableError when no response arrived at all (the caller may
+   *  fall back to sendChat; no turn was started). */
+  streamChat(message: string, handlers: ChatStreamHandlers, signal?: AbortSignal): Promise<void>;
   getDiagnostic(): Promise<Diagnostic>;
   continueDiagnostic(): Promise<ContinueDiagnostic>;
   /** DELETE /account — 204, idempotent. Permanent; the caller signs out on success. */
@@ -89,6 +99,119 @@ export class ApiError extends Error {
   }
 }
 
+/** The stream never opened: no response arrived, so no turn was started and the
+ *  caller may retry the same message over the JSON path. */
+export class StreamUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StreamUnavailableError';
+  }
+}
+
+const STOPPED_MESSAGE = 'Stopped.';
+const CUT_OFF_MESSAGE = "Portia's reply was cut off before it finished. Try again.";
+
+/** Non-2xx -> ApiError carrying the backend's voiced message (401 also routes
+ *  to sign-in). Shared by the JSON and streaming paths. */
+async function throwForStatus(res: Response, path: string): Promise<never> {
+  const fallback = `Request to ${path} failed (${res.status}).`;
+  const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;
+  const error = new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
+  if (res.status === 401) onUnauthorized?.(error);
+  throw error;
+}
+
+// The SSE variant of POST /chat. expo/fetch (not the RN global) exposes the
+// response body as a ReadableStream, so frames land as the server writes them.
+// The budget is per event, not per request: a turn can legitimately run for
+// minutes, but the server emits a `step` as each tool starts, so a long silence
+// means the connection is dead.
+async function streamChat(message: string, handlers: ChatStreamHandlers, signal?: AbortSignal): Promise<void> {
+  const controller = new AbortController();
+  const onCallerAbort = () => controller.abort();
+  signal?.addEventListener('abort', onCallerAbort);
+  let idle: ReturnType<typeof setTimeout> | null = null;
+  let timedOut = false;
+  const armIdle = () => {
+    if (idle) clearTimeout(idle);
+    idle = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, CHAT_STREAM_IDLE_MS);
+  };
+  // Why this request ended, translated from the abort reason.
+  const abortError = () =>
+    signal?.aborted
+      ? new ApiError('canceled', STOPPED_MESSAGE, 0)
+      : new ApiError('timeout', TIMEOUT_MESSAGE, 0);
+
+  try {
+    let res: Awaited<ReturnType<typeof streamingFetch>>;
+    try {
+      const token = await freshToken();
+      armIdle();
+      res = await streamingFetch(`${BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message }),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (controller.signal.aborted) throw abortError();
+      // Nothing arrived: the caller may fall back to the JSON path safely.
+      throw new StreamUnavailableError(e instanceof Error ? e.message : 'stream failed to open');
+    }
+
+    // Validation/lock/throttle errors are the JSON envelope, sent before any
+    // stream opens — the same failures the JSON path would return.
+    if (!res.ok) await throwForStatus(res, '/chat');
+    if (!res.body) throw new StreamUnavailableError('response body is not streamable');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finished = false;
+    try {
+      while (!finished) {
+        armIdle();
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parsed = parseSSEFrames(buffer);
+        buffer = parsed.rest;
+        for (const frame of parsed.frames) {
+          if (frame.event === 'step') {
+            handlers.onStep((JSON.parse(frame.data) as { label: string }).label);
+          } else if (frame.event === 'chunk') {
+            handlers.onChunk((JSON.parse(frame.data) as { text: string }).text);
+          } else if (frame.event === 'done') {
+            handlers.onDone(JSON.parse(frame.data) as ChatStreamDone);
+            finished = true;
+            break;
+          } else if (frame.event === 'error') {
+            const err = JSON.parse(frame.data) as { code?: string; message?: string };
+            throw new ApiError(err.code ?? 'internal_error', err.message ?? CUT_OFF_MESSAGE, 200);
+          }
+        }
+      }
+    } catch (e) {
+      if (controller.signal.aborted) throw abortError();
+      throw e;
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+    // The server closed without `done` (or `error`): the reply never landed.
+    if (!finished) throw new ApiError('stream_ended', CUT_OFF_MESSAGE, 0);
+  } finally {
+    if (idle) clearTimeout(idle);
+    signal?.removeEventListener('abort', onCallerAbort);
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutFor(method, path));
@@ -104,14 +227,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       signal: controller.signal,
     });
 
-    if (!res.ok) {
-      // Prefer the backend's voiced error; fall back to a plain one.
-      const fallback = `Request to ${path} failed (${res.status}).`;
-      const parsed = (await res.json().catch(() => null)) as ApiErrorBody | null;
-      const error = new ApiError(parsed?.error.code ?? 'unknown', parsed?.error.message ?? fallback, res.status);
-      if (res.status === 401) onUnauthorized?.(error);
-      throw error;
-    }
+    // Prefer the backend's voiced error; fall back to a plain one.
+    if (!res.ok) await throwForStatus(res, path);
     // 204 (account deletion) has no body by contract; an empty 2xx body is
     // tolerated the same way rather than failing on JSON.parse.
     if (res.status === 204) return undefined as T;
@@ -136,6 +253,7 @@ const httpApi: PortiaApi = {
   getChatHistory: (cursor) =>
     request('GET', `/chat/history${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   sendChat: (message) => request('POST', '/chat', { message }),
+  streamChat,
   getDiagnostic: () => request('GET', '/diagnostic'),
   continueDiagnostic: () => request('POST', '/diagnostic/continue'),
   deleteAccount: () => request('DELETE', '/account'),

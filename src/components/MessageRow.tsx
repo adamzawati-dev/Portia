@@ -11,9 +11,11 @@
 //
 // While Portia works, ThinkingSteps is one glass-edged strip: a pulsing
 // apricot dot, the current status line with an apricot shimmer sweeping the
-// text (MaskedView), previous lines exiting up. Institution names come from
-// the accounts cache — real data, never invented.
-import React, { useEffect, useRef, useState } from 'react';
+// text (MaskedView), previous lines exiting up. The lines are the server's own
+// step labels for this turn (one per tool as it starts), rendered verbatim —
+// before the first arrives, one neutral line. Nothing here claims a bank was
+// read unless the server said so.
+import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -119,7 +121,7 @@ export const MessageRow = React.memo(function MessageRow({
           accessibilityLabel="Retry sending this message"
         >
           <AppText variant="caption" color={palette.attention}>
-            Didn't send. Retry
+            {message.failure ? `${message.failure} Retry` : "Didn't send. Retry"}
           </AppText>
         </Press>
       ) : null}
@@ -137,29 +139,16 @@ export function StreamingRow({ text, caretOn }: { text: string; caretOn: boolean
 // status line with a shimmer sweeping the text, previous lines exiting up.
 // ---------------------------------------------------------------------------
 
-const STEP_MS = 1400;
 const SHIMMER_MS = 1800;
 const SHIMMER_SWEEP_W = 300;
+// Shown until the server's first step label lands (and for the whole turn on
+// the JSON fallback path, which carries no progress).
+const NEUTRAL_STEP = 'Working on it…';
 
-function buildSteps(): string[] {
-  const institutions =
-    getAccountsCacheSync()?.data.institutions.map((i) => i.institutionName) ?? [];
-  const reading =
-    institutions.length > 0
-      ? institutions.slice(0, 2).map((name) => `Reading ${name}…`)
-      : ['Reading your accounts…'];
-  return [...reading, 'Scanning recent transactions…', 'Writing it up…'];
-}
-
-export function ThinkingSteps() {
+/** `steps`: the server's progress labels for this turn, in arrival order. */
+export function ThinkingSteps({ steps }: { steps: string[] }) {
   const { reduced, durations } = useMotion();
-  const [steps] = useState(buildSteps);
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (idx >= steps.length - 1) return;
-    const t = setTimeout(() => setIdx((i) => i + 1), STEP_MS);
-    return () => clearTimeout(t);
-  }, [idx, steps.length]);
+  const label = steps.length > 0 ? steps[steps.length - 1] : NEUTRAL_STEP;
 
   return (
     <View style={styles.assistant} accessibilityLabel="Portia is working">
@@ -167,11 +156,11 @@ export function ThinkingSteps() {
         <PulsingDot />
         <View style={styles.thinkSlot}>
           <Animated.View
-            key={idx}
+            key={steps.length}
             entering={reduced ? undefined : FadeInUp.duration(durations.fast)}
             exiting={reduced ? undefined : FadeOutUp.duration(durations.fast)}
           >
-            <ShimmerText text={steps[idx]} />
+            <ShimmerText text={label} />
           </Animated.View>
         </View>
       </View>

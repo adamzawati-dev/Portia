@@ -99,6 +99,16 @@ export type ChatHistory = { messages: ChatMessage[]; nextCursor?: string };
 // id of the user's turn (same id it carries in /chat/history) for reconciliation.
 export type ChatReply = { messages: ChatMessage[]; userMessageId?: string };
 
+// POST /chat, streaming variant (`Accept: text/event-stream`). The server emits
+// `step` per tool as it starts (a real progress label, rendered verbatim), then
+// `chunk` text to concatenate in order, then `done` with the persisted reply.
+export type ChatStreamDone = { message: ChatMessage; userMessageId?: string };
+export type ChatStreamHandlers = {
+  onStep: (label: string) => void;
+  onChunk: (text: string) => void;
+  onDone: (done: ChatStreamDone) => void;
+};
+
 // Diagnostic — each segment is one full-screen card in the paced reveal. `caption`
 // is the voice line and must not restate `figure` (the card shows it big on its own).
 export type DiagnosticSegment = {

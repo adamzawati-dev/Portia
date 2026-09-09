@@ -16,6 +16,7 @@ import type {
   ContinueDiagnostic,
   ChatMessage,
   ChatReply,
+  ChatStreamHandlers,
   Diagnostic,
   ExchangeInput,
   ExchangeResult,
@@ -160,6 +161,19 @@ export const mockApi: PortiaApi = {
     };
     history.push(reply);
     return delay({ messages: [reply], userMessageId });
+  },
+
+  // The SSE shape over the same canned reply: real-looking step labels, one
+  // chunk carrying the whole text (as the server does today), then done.
+  async streamChat(message: string, handlers: ChatStreamHandlers): Promise<void> {
+    await delay(undefined);
+    handlers.onStep('Checking balances');
+    await delay(undefined);
+    handlers.onStep('Scanning transactions');
+    const reply = await mockApi.sendChat(message);
+    const [first] = reply.messages;
+    handlers.onChunk(first.text);
+    handlers.onDone({ message: first, userMessageId: reply.userMessageId });
   },
 
   async getDiagnostic(): Promise<Diagnostic> {

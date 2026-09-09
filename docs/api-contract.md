@@ -102,7 +102,19 @@ Exchange the SDK's `public_token` after the user links a bank. Backend exchanges
 for an access token, encrypts it (AES-256-GCM, as today), and binds it to the
 authed user id. Duplicate institutions are detected and discarded, as today.
 - **Body** `{ publicToken: string, institution: { id: string, name: string } }`
-- **200** `{ linked: { institutionName: string, accountCount: number }[], duplicate: boolean }`
+- **200** `{ linked: { institutionName: string, accountCount: number }[], duplicate: boolean, institutionName?: string | null }`
+  - `duplicate: true` means that institution was already connected and nothing new
+    was linked (`linked` is empty). `institutionName` names the bank that is already
+    in, so the client can render the Connected/Continue view rather than a dead end
+    (a lost exchange response followed by a re-link lands here). Only present on
+    the duplicate case.
+- **The hold is not client-only.** The first exchange parks onboarding in a hold
+  that `POST /plaid/linking-done` (Continue) releases. If Continue never arrives
+  (app killed on the Connected view), the backend releases the hold itself once it
+  is ~10 minutes old AND every linked institution has finished backfilling -- via
+  the `GET /me` poll, the `GET /diagnostic` kick, or a 15-minute sweep -- so
+  `diagnosticState` cannot stay 'pending' forever. Still call linking-done on
+  Continue: it is the fast path.
 
 ---
 
@@ -233,7 +245,13 @@ everything else.
 
 ### `GET /diagnostic`
 The one-time 6–12 paced segments. Delivered as data so the app can stage the
-reveal; runs once ever, server-enforced. **Read-only:** fetching never marks the
+reveal; runs once ever, server-enforced. **Thin data is terminal, not a
+permanent 'pending':** when the linked history is below the diagnostic floor
+(fewer than 15 transactions once every institution has backfilled), the backend
+completes the diagnostic with 2 deterministic text-only cards (no `figure`;
+label "Not enough history yet" then "What happens next") and seeds a matching
+narration line into the chat. `/me` goes 'ready' -> 'done' through the same
+reveal + continue flow, so the chip clears and no special client state is needed. **Read-only:** fetching never marks the
 reveal as seen, so a lost response or an interrupted reveal can be re-fetched and
 replayed; only `POST /diagnostic/continue` consumes it.
 - **200**

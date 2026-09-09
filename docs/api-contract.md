@@ -25,6 +25,13 @@ implements it (`src/api/mock.ts`), so both sides move in parallel.
   still-valid token was deleted; the app signs out and says so on the sign-in
   screen. Any other failure of `GET /me` at launch (offline, 5xx, timeout) is NOT
   a sign-out: the app keeps the session and shows a retry screen.
+  Cross-cutting codes the client must handle without signing out:
+  - `409 busy` — this user already has a `POST /chat` turn running; wait for it
+    (or its failure) and resend, never run two.
+  - `429 rate_limited` — per-user throttle (`POST /chat` 10/min, `GET /accounts`
+    6/min); back off, show `message`, do not auto-retry.
+  - `503 service_unavailable` — the backend could not verify the session (auth
+    key set unreachable); the token may be valid, so retry later, do NOT sign out.
 
 ## Base URL
 
@@ -72,9 +79,11 @@ progress streams in).
     }
   }
   ```
-- **Poll THIS endpoint for sync/diagnostic status, never `GET /diagnostic`** — a
-  'ready' fetch of `/diagnostic` marks the reveal as seen. (Fetching it while
-  'pending' is safe and doubles as a retry kick.)
+- **Poll THIS endpoint for sync/diagnostic status, not `GET /diagnostic`.**
+  `GET /diagnostic` is read-only (a fetch never consumes the reveal; fetching it
+  while 'pending' doubles as a retry kick). `diagnosticState` stays 'ready' —
+  and a cold open keeps routing into the reveal — until the app sends
+  `POST /diagnostic/continue`, the explicit finish/skip ack that flips it to 'done'.
 - After `POST /plaid/linking-done` the backend seeds Portia's narration line into
   the chat thread ("<banks> are in. I'm reading your transaction history now…"),
   idempotently and only as the thread's first message — the app just fetches
@@ -132,6 +141,8 @@ hero number must arrive precomputed).
   }
   // A failing institution is NOT dropped: its accounts are served from cache so the
   // app can say "Wells Fargo didn't refresh. Your last balance is still shown."
+  // 429 `rate_limited` above 6 calls per minute per user (each call is a live,
+  // per-call-billed Plaid balance read): throttle pull-to-refresh accordingly.
   Account = {
     id: string
     name: string              // e.g. "Checking"
@@ -165,6 +176,9 @@ Send a message to Portia; receive her reply (possibly several messages).
 - `userMessageId` is the persisted id of the user's turn (the same id that row will
   carry in `/chat/history`), so an optimistic bubble can be reconciled by id. Absent
   only if persistence of the turn itself failed.
+- **409 `busy`** if a turn for this user is still in flight (server serializes
+  per user; a client retry after a timeout must not start a second turn).
+- **429 `rate_limited`** above 10 turns per minute per user.
 
 #### Streaming variant (same path)
 Send the same request with `Accept: text/event-stream` to receive SSE instead of
@@ -219,7 +233,9 @@ everything else.
 
 ### `GET /diagnostic`
 The one-time 6–12 paced segments. Delivered as data so the app can stage the
-reveal; runs once ever, server-enforced.
+reveal; runs once ever, server-enforced. **Read-only:** fetching never marks the
+reveal as seen, so a lost response or an interrupted reveal can be re-fetched and
+replayed; only `POST /diagnostic/continue` consumes it.
 - **200**
   ```
   {
@@ -238,12 +254,19 @@ reveal; runs once ever, server-enforced.
   ```
 
 ### `POST /diagnostic/continue`
-Fired (and forgotten) when the user taps through the reveal's closing hook. Seeds
-Portia's opening line into the chat thread — the conversation continues what the
-cards started instead of opening on an empty room; the chat screen collects it on
-its first history fetch. Idempotent: seeds only when the diagnostic is complete and
-the thread is still empty. The line is validated to contain **no figures** (any
-digit rejects the generation and a deterministic fallback ships instead).
+Fired (and forgotten) when the user finishes **or skips** the reveal. Two effects:
+1. Marks every segment surfaced — this is the ack that flips `diagnosticState`
+   from 'ready' to 'done'. Until the app sends it, `/me` keeps reporting 'ready'
+   and a cold open replays the reveal.
+2. Seeds Portia's opening line into the chat thread — the conversation continues
+   what the cards started instead of opening on an empty room; the chat screen
+   collects it on its first history fetch. Seeds only when the diagnostic is
+   complete, the user has not written a turn yet, and no bridge line exists
+   (the linking narration seeded after `POST /plaid/linking-done` does not block
+   it — the bridge lands after that line). The line is validated to contain
+   **no figures** (any digit rejects the generation and a deterministic fallback
+   ships instead).
+Idempotent on both counts.
 - **200** `{ seeding: boolean }`
 
 ---

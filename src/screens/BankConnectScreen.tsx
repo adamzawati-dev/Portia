@@ -36,19 +36,27 @@ const ASSURANCES: Assurance[] = [
   { icon: 'trash.fill', title: 'Gone when you say so' },
 ];
 
-export function BankConnectScreen({ onConnected }: { onConnected: () => void }) {
+// A bank that was already linked (the user came back to this screen after leaving
+// before 'Continue', or picked the same bank twice). Not an error: it still counts
+// as connected, so the user can continue instead of dead-ending.
+const ALREADY_LINKED_LABEL = 'Your bank';
+
+export function BankConnectScreen({ onConnected }: { onConnected: () => Promise<void> }) {
   const insets = useSafeAreaInsets();
   const [connecting, setConnecting] = useState(false);
   // While the exchange or the wrap-up round-trip runs, the screen becomes the
   // Overview's own skeleton with one status line — never a blocking spinner.
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Quiet status (not an error) above the actions, e.g. a duplicate link.
+  const [notice, setNotice] = useState<string | null>(null);
   // Institutions linked THIS session — for a first-time user that is everything they
   // have, so no round-trip needed to show "connected so far".
   const [linked, setLinked] = useState<string[]>([]);
 
   const handleConnect = async () => {
     setError(null);
+    setNotice(null);
     setConnecting(true);
     try {
       // The syncing view takes over once the Plaid sheet succeeds and the
@@ -56,12 +64,20 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
       const result = await connectBank(() => setSyncing(true));
       setSyncing(false);
       setConnecting(false);
+      const names = result.linked.map((l) => l.institutionName);
       if (result.duplicate) {
-        setError('That bank was already connected — nothing changed.');
+        // Already linked server-side. Show it as connected (by name when the
+        // response carries one) so 'Continue' is on screen, and say so.
+        setLinked((prev) => {
+          const fresh = names.filter((n) => !prev.includes(n));
+          if (fresh.length > 0) return [...prev, ...fresh];
+          return prev.length > 0 ? prev : [ALREADY_LINKED_LABEL];
+        });
+        setNotice('Already connected.');
         return;
       }
       haptic.success();
-      setLinked((prev) => [...prev, ...result.linked.map((l) => l.institutionName)]);
+      setLinked((prev) => [...prev, ...names]);
     } catch (e) {
       setSyncing(false);
       setConnecting(false);
@@ -72,10 +88,14 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
 
   const handleContinue = async () => {
     setError(null);
+    setNotice(null);
     setSyncing(true);
     try {
       await api.finishLinking(); // releases the diagnostic hold server-side
-      onConnected(); // routes into the Diagnostic; syncing stays on through the unmount
+      // Routes onward (a /me round-trip); syncing stays on through the unmount.
+      // Awaited so a failed route lands in the catch below with a retry, instead
+      // of stranding the user on the syncing skeleton with no exit.
+      await onConnected();
     } catch {
       setSyncing(false);
       setError("Couldn't wrap that up. Try again.");
@@ -141,6 +161,10 @@ export function BankConnectScreen({ onConnected }: { onConnected: () => void }) 
             {error ? (
               <AppText variant="caption" color={palette.attention} style={styles.error}>
                 {error}
+              </AppText>
+            ) : notice ? (
+              <AppText variant="caption" color={palette.textSecondary} style={styles.error}>
+                {notice}
               </AppText>
             ) : null}
             <Press

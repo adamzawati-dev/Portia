@@ -116,7 +116,7 @@ export const mockApi: PortiaApi = {
         creditOwed: 842.55,
         creditOwedWindow: 'as of just now',
         pending: [{ label: 'Pending on Platinum', amount: 75.75, window: 'as of just now' }],
-        insight: 'Most of your cash is sitting in Way2Save -- $9,120 of $12,404 as of the last refresh.',
+        insight: 'Most of your cash is sitting in Way2Save, $9,120 of $12,404 as of the last refresh.',
       },
       institutions: [
         {
